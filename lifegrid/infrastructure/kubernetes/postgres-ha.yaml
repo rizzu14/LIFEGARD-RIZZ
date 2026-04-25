@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-primary
+  namespace: lifegrid
+spec:
+  serviceName: postgres-primary
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      role: primary
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: primary
+    spec:
+      containers:
+        - name: postgres
+          image: postgis/postgis:16-3.4
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: lifegrid
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: lifegrid-secrets
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lifegrid-secrets
+                  key: postgres-password
+            - name: POSTGRES_REPLICATION_USER
+              value: replicator
+            - name: POSTGRES_REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lifegrid-secrets
+                  key: postgres-replication-password
+          resources:
+            requests:
+              cpu: "4000m"
+              memory: "16Gi"
+            limits:
+              cpu: "16000m"
+              memory: "64Gi"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-config
+              mountPath: /etc/postgresql/conf.d
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, lifegrid]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: fast-nvme
+        resources:
+          requests:
+            storage: 2Ti             # 2TB NVMe for primary
+---
+# Read replicas (5 replicas for read scaling)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-replica
+  namespace: lifegrid
+spec:
+  serviceName: postgres-replica
+  replicas: 5
+  selector:
+    matchLabels:
+      app: postgres
+      role: replica
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: replica
+    spec:
+      containers:
+        - name: postgres
+          image: postgis/postgis:16-3.4
+          ports:
+            - containerPort: 5432
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_PRIMARY_HOST
+              value: postgres-primary-0.postgres-primary.lifegrid.svc.cluster.local
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "8Gi"
+            limits:
+              cpu: "8000m"
+              memory: "32Gi"
+          volumeMounts:
+            - name: postgres-replica-data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-replica-data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 1Ti
+---
+# PgBouncer connection pooler
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: lifegrid
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+    spec:
+      containers:
+        - name: pgbouncer
+          image: bitnami/pgbouncer:1.22.1
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRESQL_HOST
+              value: postgres-primary-0.postgres-primary.lifegrid.svc.cluster.local
+            - name: POSTGRESQL_PORT
+              value: "5432"
+            - name: PGBOUNCER_POOL_MODE
+              value: transaction          # Transaction pooling for max throughput
+            - name: PGBOUNCER_MAX_CLIENT_CONN
+              value: "10000"             # 10k client connections per bouncer
+            - name: PGBOUNCER_DEFAULT_POOL_SIZE
+              value: "100"
+            - name: PGBOUNCER_MIN_POOL_SIZE
+              value: "10"
+            - name: PGBOUNCER_RESERVE_POOL_SIZE
+              value: "20"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "256Mi"
+            limits:
+              cpu: "2000m"
+              memory: "1Gi"

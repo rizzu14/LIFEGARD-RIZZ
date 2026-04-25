@@ -1,0 +1,533 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── LIFEGRID Design System – Operator Control Center ────────
+   Black & White command aesthetic. Dense, information-rich.
+   ─────────────────────────────────────────────────────────── */
+
+:root {
+  --color-bg:          #000000;
+  --color-surface:     #080808;
+  --color-surface-2:   #0d0d0d;
+  --color-surface-3:   #121212;
+  --color-border:      #1a1a1a;
+  --color-border-2:    #252525;
+  --color-text:        #e8e8e8;
+  --color-text-muted:  #666666;
+  --color-text-dim:    #3a3a3a;
+  --color-accent:      #ffffff;
+
+  /* Alert level colors */
+  --color-green:   #00c853;
+  --color-yellow:  #ffd600;
+  --color-orange:  #ff6d00;
+  --color-red:     #d50000;
+  --color-black-alert: #ffffff;  /* inverted for black alert */
+
+  /* Severity */
+  --color-critical: #ff1744;
+  --color-high:     #ff6d00;
+  --color-medium:   #ffd600;
+  --color-low:      #00c853;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+/* ── Focus ───────────────────────────────────────────────────── */
+:focus-visible { outline: 1px solid #555; outline-offset: 1px; }
+
+/* ── Leaflet overrides ───────────────────────────────────────── */
+.leaflet-container {
+  background: #050505 !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+}
+.leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) saturate(0.3);
+}
+.leaflet-control-zoom a {
+  background: #0d0d0d !important;
+  color: #888 !important;
+  border-color: #1a1a1a !important;
+  font-size: 14px !important;
+}
+.leaflet-popup-content-wrapper {
+  background: #0d0d0d !important;
+  border: 1px solid #1a1a1a !important;
+  border-radius: 0 !important;
+  color: #e8e8e8 !important;
+  box-shadow: none !important;
+}
+.leaflet-popup-tip { background: #0d0d0d !important; }
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes scanline {
+  0% { transform: translateY(-100%); opacity: 0.03; }
+  100% { transform: translateY(100vh); opacity: 0.03; }
+}
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(213, 0, 0, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(213, 0, 0, 0); }
+}
+@keyframes data-stream {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-alert-pulse { animation: alert-pulse 1.5s ease-in-out infinite; }
+.animate-blink-cursor { animation: blink-cursor 1s step-end infinite; }
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
+
+/* ── Operator grid layout ────────────────────────────────────── */
+.operator-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-rows: 48px 1fr 200px;
+  height: 100vh;
+  gap: 1px;
+  background: var(--color-border);
+}
+
+.operator-grid > * {
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+/* ── Panel styles ────────────────────────────────────────────── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Incident row ────────────────────────────────────────────── */
+.incident-row {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 100ms;
+}
+.incident-row:hover { background: var(--color-surface-2); }
+.incident-row.selected { background: var(--color-surface-3); }
+
+/* ── Severity dot ────────────────────────────────────────────── */
+.severity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.severity-dot.CRITICAL { background: var(--color-critical); animation: alert-pulse 1.5s infinite; }
+.severity-dot.HIGH     { background: var(--color-high); }
+.severity-dot.MEDIUM   { background: var(--color-medium); }
+.severity-dot.LOW      { background: var(--color-low); }
+
+/* ── Status badge ────────────────────────────────────────────── */
+.status-badge {
+  font-size: 8px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid;
+}
+
+/* ── Metric card ─────────────────────────────────────────────── */
+.metric-card {
+  padding: 12px;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.metric-value {
+  font-size: 28px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  line-height: 1;
+}
+.metric-label {
+  font-size: 8px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Alert level banner ──────────────────────────────────────── */
+.alert-banner-GREEN  { background: rgba(0, 200, 83, 0.08);  border-color: rgba(0, 200, 83, 0.3);  color: #00c853; }
+.alert-banner-YELLOW { background: rgba(255, 214, 0, 0.08); border-color: rgba(255, 214, 0, 0.3); color: #ffd600; }
+.alert-banner-ORANGE { background: rgba(255, 109, 0, 0.08); border-color: rgba(255, 109, 0, 0.3); color: #ff6d00; }
+.alert-banner-RED    { background: rgba(213, 0, 0, 0.12);   border-color: rgba(213, 0, 0, 0.4);   color: #ff1744; }
+.alert-banner-BLACK  { background: rgba(255,255,255,0.05);  border-color: rgba(255,255,255,0.3);  color: #ffffff; }
+
+/* ══════════════════════════════════════════════════════════════
+   LIFEGRID Command Center – Extended Design System v2.0
+   High-density tactical interface additions
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Advanced grid layouts ───────────────────────────────────── */
+
+/* Full command center: 5-column tactical layout */
+.command-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 1fr 300px;
+  grid-template-rows: 48px 1fr 1fr 180px;
+  height: 100vh;
+  gap: 1px;
+  background: var(--color-border);
+}
+
+.command-grid > * {
+  background: var(--color-bg);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── Resizable panel handle ──────────────────────────────────── */
+.resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 150ms;
+}
+.resize-handle:hover { background: rgba(255,255,255,0.1); }
+
+/* ── Heatmap canvas overlay ──────────────────────────────────── */
+.heatmap-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 400;
+  mix-blend-mode: screen;
+}
+
+/* ── Satellite layer controls ────────────────────────────────── */
+.layer-control {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layer-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: rgba(0,0,0,0.85);
+  border: 1px solid var(--color-border);
+  font-size: 8px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 100ms;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+.layer-btn:hover { border-color: #333; color: #ccc; }
+.layer-btn.active { border-color: rgba(255,255,255,0.3); color: #fff; background: rgba(255,255,255,0.05); }
+.layer-btn .layer-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── AI suggestion card ──────────────────────────────────────── */
+.ai-card {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 10px 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #fff, transparent);
+}
+
+.ai-card.confidence-high::before   { background: #00c853; }
+.ai-card.confidence-medium::before { background: #ffd600; }
+.ai-card.confidence-low::before    { background: #ff6d00; }
+
+.ai-confidence-bar {
+  height: 2px;
+  background: var(--color-border);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.ai-confidence-fill {
+  height: 100%;
+  background: #fff;
+  transition: width 600ms ease-out;
+}
+
+/* ── Communication panel ─────────────────────────────────────── */
+.comm-channel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 100ms;
+}
+.comm-channel:hover { background: var(--color-surface-2); }
+.comm-channel.active { background: var(--color-surface-3); border-left: 2px solid #fff; }
+
+.comm-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.comm-status-dot.online  { background: #00c853; }
+.comm-status-dot.busy    { background: #ffd600; }
+.comm-status-dot.offline { background: #333; }
+
+/* ── Agency badge ────────────────────────────────────────────── */
+.agency-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid;
+  font-size: 7px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* ── Priority queue item ─────────────────────────────────────── */
+.priority-item {
+  display: grid;
+  grid-template-columns: 4px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 100ms;
+}
+.priority-item:hover { background: var(--color-surface-2); }
+
+.priority-bar {
+  width: 4px;
+  border-radius: 2px;
+  align-self: stretch;
+  min-height: 40px;
+}
+
+/* ── Flood overlay legend ────────────────────────────────────── */
+.flood-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 1000;
+  background: rgba(0,0,0,0.85);
+  border: 1px solid var(--color-border);
+  padding: 8px 10px;
+  backdrop-filter: blur(8px);
+}
+
+/* ── Satellite data ticker ───────────────────────────────────── */
+.data-ticker {
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.data-ticker-inner {
+  display: flex;
+  gap: 24px;
+  animation: ticker-scroll 30s linear infinite;
+  white-space: nowrap;
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ── Waveform / signal bars ──────────────────────────────────── */
+.signal-bar {
+  width: 2px;
+  background: #333;
+  border-radius: 1px;
+  transition: height 300ms ease-out, background 300ms;
+}
+.signal-bar.active { background: #fff; }
+
+/* ── Crosshair cursor on map ─────────────────────────────────── */
+.map-crosshair .leaflet-container {
+  cursor: crosshair !important;
+}
+
+/* ── Incident severity left-border rows ──────────────────────── */
+.incident-row-CRITICAL { border-left: 3px solid #ff1744; }
+.incident-row-HIGH     { border-left: 3px solid #ff6d00; }
+.incident-row-MEDIUM   { border-left: 3px solid #ffd600; }
+.incident-row-LOW      { border-left: 3px solid #00c853; }
+
+/* ── Tooltip ─────────────────────────────────────────────────── */
+.tactical-tooltip {
+  position: absolute;
+  background: rgba(0,0,0,0.92);
+  border: 1px solid var(--color-border-2);
+  padding: 6px 10px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+/* ── Broadcast modal ─────────────────────────────────────────── */
+.broadcast-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Sparkline ───────────────────────────────────────────────── */
+.sparkline-path {
+  fill: none;
+  stroke: #333;
+  stroke-width: 1;
+  transition: stroke 300ms;
+}
+.sparkline-path.active { stroke: #fff; }
+
+/* ── Scan line effect ────────────────────────────────────────── */
+.scanline-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Glowing critical indicator ──────────────────────────────── */
+@keyframes critical-glow {
+  0%, 100% { box-shadow: 0 0 4px #ff1744, 0 0 8px rgba(255,23,68,0.3); }
+  50%       { box-shadow: 0 0 8px #ff1744, 0 0 16px rgba(255,23,68,0.5); }
+}
+.critical-glow { animation: critical-glow 2s ease-in-out infinite; }
+
+/* ── Map popup custom ────────────────────────────────────────── */
+.leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
+.leaflet-popup-close-button { color: #555 !important; top: 4px !important; right: 6px !important; }
+
+/* ── Minimap ─────────────────────────────────────────────────── */
+.minimap-container {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 140px;
+  height: 100px;
+  border: 1px solid var(--color-border);
+  z-index: 1000;
+  overflow: hidden;
+  background: #050505;
+}
+
+/* ── Keyboard shortcut badge ─────────────────────────────────── */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 4px;
+  border: 1px solid #333;
+  font-size: 7px;
+  font-family: var(--font-mono);
+  color: #555;
+  border-radius: 2px;
+  min-width: 16px;
+}

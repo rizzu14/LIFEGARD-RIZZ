@@ -1,0 +1,515 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════
+   LIFEGRID Design System – Citizen Mobile UI  v2.0
+   White · Minimalist · Emergency-first
+   ══════════════════════════════════════════════════════════════ */
+
+:root {
+  --color-bg:          #ffffff;
+  --color-surface:     #f5f5f5;
+  --color-surface-2:   #eeeeee;
+  --color-surface-3:   #e5e5e5;
+  --color-border:      #dddddd;
+  --color-border-2:    #cccccc;
+  --color-text:        #0a0a0a;
+  --color-text-muted:  #666666;
+  --color-text-dim:    #999999;
+  --color-accent:      #000000;
+  --color-critical:    #e53935;
+  --color-high:        #f57c00;
+  --color-medium:      #f9a825;
+  --color-low:         #2e7d32;
+  --color-info:        #1565c0;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--color-surface); }
+::-webkit-scrollbar-thumb { background: var(--color-border-2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #999; }
+
+/* ── Focus ring ──────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* ── Selection ───────────────────────────────────────────────── */
+::selection {
+  background: rgba(0, 0, 0, 0.12);
+  color: #000;
+}
+
+/* ── Leaflet map overrides ───────────────────────────────────── */
+.leaflet-container {
+  background: #f0f0f0 !important;
+  font-family: var(--font-sans) !important;
+}
+
+.leaflet-tile {
+  filter: none;
+}
+
+.leaflet-control-zoom a {
+  background: #ffffff !important;
+  color: #333333 !important;
+  border-color: var(--color-border) !important;
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes pulse-critical {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-pulse-critical { animation: pulse-critical 1s ease-in-out infinite; }
+.animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+.animate-slide-up { animation: slide-up 0.4s ease-out forwards; }
+.animate-blink { animation: blink 1s step-end infinite; }
+
+/* ── Utility classes ─────────────────────────────────────────── */
+.font-mono { font-family: var(--font-mono); }
+.text-critical { color: var(--color-critical); }
+.text-high { color: var(--color-high); }
+.text-medium { color: var(--color-medium); }
+.text-low { color: var(--color-low); }
+.text-muted { color: var(--color-text-muted); }
+.text-dim { color: var(--color-text-dim); }
+
+.border-critical { border-color: var(--color-critical) !important; }
+.border-high { border-color: var(--color-high) !important; }
+
+.bg-surface { background-color: var(--color-surface); }
+.bg-surface-2 { background-color: var(--color-surface-2); }
+.bg-surface-3 { background-color: var(--color-surface-3); }
+
+/* ── Grid overlay ────────────────────────────────────────── */
+.grid-overlay {
+  background-image:
+    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Mobile shell ────────────────────────────────────────────── */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Safe area insets for notched devices */
+:root {
+  --safe-top:    env(safe-area-inset-top,    0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left,   0px);
+  --safe-right:  env(safe-area-inset-right,  0px);
+
+  /* Mobile layout */
+  --nav-height:    64px;
+  --header-height: 56px;
+  --sos-size:      160px;
+
+  /* Haptic-ready transitions */
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+}
+
+/* ── Mobile screen container ─────────────────────────────────── */
+.screen {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+.screen-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* ── Bottom navigation ───────────────────────────────────────── */
+.bottom-nav {
+  height: var(--nav-height);
+  padding-bottom: var(--safe-bottom);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 150ms;
+}
+
+.nav-item:active { opacity: 0.6; }
+
+.nav-item.active .nav-icon { color: #111; }
+.nav-item.active .nav-label { color: #111; }
+.nav-item:not(.active) .nav-icon { color: #aaa; }
+.nav-item:not(.active) .nav-label { color: #aaa; }
+
+.nav-icon { width: 22px; height: 22px; }
+.nav-label { font-size: 9px; font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ── SOS button ──────────────────────────────────────────────── */
+.sos-button {
+  width: var(--sos-size);
+  height: var(--sos-size);
+  border-radius: 50%;
+  border: 2px solid #111;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 100ms var(--spring), background 100ms;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sos-button:active {
+  transform: scale(0.94);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.sos-button.triggered {
+  background: #111;
+  border-color: #111;
+}
+
+.sos-button.triggered .sos-label,
+.sos-button.triggered .sos-sub {
+  color: #fff;
+}
+
+/* Pulse rings */
+.sos-ring {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 1px solid rgba(229, 57, 53, 0.3);
+  animation: sos-ring-pulse 2s ease-out infinite;
+}
+
+.sos-ring:nth-child(2) { inset: -24px; animation-delay: 0.4s; }
+.sos-ring:nth-child(3) { inset: -36px; animation-delay: 0.8s; }
+
+@keyframes sos-ring-pulse {
+  0%   { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.15); }
+}
+
+.sos-label {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: #111;
+  line-height: 1;
+}
+
+.sos-sub {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #999;
+}
+
+/* ── Status bar ──────────────────────────────────────────────── */
+.status-bar {
+  height: var(--header-height);
+  padding-top: var(--safe-top);
+  display: flex;
+  align-items: center;
+  padding-left: 20px;
+  padding-right: 20px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 50;
+}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 16px;
+}
+
+.card-sm {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 12px;
+}
+
+/* ── Alert pill ──────────────────────────────────────────────── */
+.alert-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* ── Voice waveform ──────────────────────────────────────────── */
+.voice-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: #111;
+  animation: voice-wave 0.8s ease-in-out infinite alternate;
+  transform-origin: bottom;
+}
+
+@keyframes voice-wave {
+  from { transform: scaleY(0.2); opacity: 0.4; }
+  to   { transform: scaleY(1);   opacity: 1; }
+}
+
+/* ── Chat bubble ─────────────────────────────────────────────── */
+.chat-bubble-system {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 0 12px 12px 12px;
+  padding: 12px 14px;
+  max-width: 85%;
+}
+
+.chat-bubble-user {
+  background: #111;
+  color: #fff;
+  border-radius: 12px 0 12px 12px;
+  padding: 12px 14px;
+  max-width: 85%;
+  margin-left: auto;
+}
+
+/* ── Responder tracker ───────────────────────────────────────── */
+.responder-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #111;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #111;
+  animation: responder-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes responder-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(17,17,17,0.6); }
+  50%       { box-shadow: 0 0 0 6px rgba(17,17,17,0); }
+}
+
+/* ── Progress bar ────────────────────────────────────────────── */
+.progress-track {
+  height: 2px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #111;
+  transition: width 600ms var(--ease-out);
+}
+
+/* ── Offline banner ──────────────────────────────────────────── */
+.offline-banner {
+  background: #1a1a00;
+  border-bottom: 1px solid #ffd70040;
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: #ffd700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── Swipe hint ──────────────────────────────────────────────── */
+@keyframes swipe-hint {
+  0%, 100% { transform: translateX(0); opacity: 0.4; }
+  50%       { transform: translateX(6px); opacity: 0.8; }
+}
+
+/* ── Skeleton loader ─────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #eee 25%, #e0e0e0 50%, #eee 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Haptic feedback visual ──────────────────────────────────── */
+.haptic-flash {
+  animation: haptic-flash 150ms ease-out;
+}
+
+@keyframes haptic-flash {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* ── Step indicator ──────────────────────────────────────────── */
+.step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-border-2);
+  transition: all 300ms var(--spring);
+}
+
+.step-dot.active {
+  width: 20px;
+  border-radius: 3px;
+  background: #111;
+}
+
+/* ── Slide-up sheet ──────────────────────────────────────────── */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+}
+
+.sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-top: 1px solid var(--color-border);
+  border-radius: 16px 16px 0 0;
+  z-index: 201;
+  padding-bottom: var(--safe-bottom);
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--color-border-2);
+  border-radius: 2px;
+  margin: 12px auto 0;
+}
+
+/* ── Countdown ring ──────────────────────────────────────────── */
+.countdown-ring {
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.countdown-ring circle {
+  transition: stroke-dashoffset 1s linear;
+}
+
+/* ── Map dark overlay ────────────────────────────────────────── */
+.map-vignette {
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+  pointer-events: none;
+}
+
+/* ── Accessibility ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Landscape lock hint ─────────────────────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-warning {
+    display: flex;
+  }
+}

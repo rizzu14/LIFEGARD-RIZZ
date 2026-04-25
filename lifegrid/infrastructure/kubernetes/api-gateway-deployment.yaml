@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: lifegrid
+  labels:
+    app: api-gateway
+    tier: gateway
+    version: v2
+spec:
+  replicas: 20                    # Horizontal scaling: 20 pods baseline
+  selector:
+    matchLabels:
+      app: api-gateway
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 5
+      maxUnavailable: 0           # Zero-downtime deployments
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        version: v2
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4000"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values: [api-gateway]
+              topologyKey: kubernetes.io/hostname  # Spread across nodes
+      topologySpreadConstraints:
+        - maxSkew: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: api-gateway
+      containers:
+        - name: api-gateway
+          image: lifegrid/api-gateway:latest
+          ports:
+            - containerPort: 4000
+              name: http
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "4000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lifegrid-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lifegrid-secrets
+                  key: redis-cluster-url
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: lifegrid-config
+                  key: kafka-brokers
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lifegrid-secrets
+                  key: jwt-access-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]  # Drain connections
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-svc
+  namespace: lifegrid
+spec:
+  selector:
+    app: api-gateway
+  ports:
+    - port: 4000
+      targetPort: 4000
+      name: http
+  type: ClusterIP
+  sessionAffinity: ClientIP          # Sticky sessions for WebSocket
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: lifegrid
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 20
+  maxReplicas: 500                   # Scale to 500 pods under extreme load
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Pods
+      pods:
+        metric:
+          name: websocket_connections_per_pod
+        target:
+          type: AverageValue
+          averageValue: "5000"       # Max 5000 WS connections per pod
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 50
+          periodSeconds: 60          # Add up to 50 pods per minute
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 10
+          periodSeconds: 60

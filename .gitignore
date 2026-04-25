@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Environment files — NEVER commit these
+**/.env
+**/.env.local
+**/.env.production
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary
+*.tmp
+*.temp

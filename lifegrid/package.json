@@ -1,0 +1,26 @@
+{
+  "name": "lifegrid-platform",
+  "version": "1.0.0",
+  "description": "LIFEGRID – National Emergency Coordination Infrastructure",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:citizen\" \"npm run dev:operator\" \"npm run dev:api\"",
+    "dev:citizen": "npm run dev --workspace=apps/citizen-ui",
+    "dev:operator": "npm run dev --workspace=apps/operator-ui",
+    "dev:api": "npm run dev --workspace=services/api-gateway",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5"
+  }
+}

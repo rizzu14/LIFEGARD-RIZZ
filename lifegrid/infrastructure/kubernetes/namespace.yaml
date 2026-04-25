@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lifegrid
+  labels:
+    name: lifegrid
+    environment: production
+    tier: national-infrastructure
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lifegrid-quota
+  namespace: lifegrid
+spec:
+  hard:
+    requests.cpu: "2000"
+    requests.memory: "4000Gi"
+    limits.cpu: "4000"
+    limits.memory: "8000Gi"
+    pods: "10000"
+    services: "500"
+    persistentvolumeclaims: "200"

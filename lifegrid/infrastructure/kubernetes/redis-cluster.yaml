@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  namespace: lifegrid
+spec:
+  serviceName: redis-cluster
+  replicas: 6                        # 3 masters + 3 replicas
+  selector:
+    matchLabels:
+      app: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: redis-cluster
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          ports:
+            - containerPort: 6379
+              name: client
+            - containerPort: 16379
+              name: gossip
+          command:
+            - redis-server
+            - /etc/redis/redis.conf
+            - --cluster-enabled yes
+            - --cluster-config-file /data/nodes.conf
+            - --cluster-node-timeout 5000
+            - --appendonly yes
+            - --maxmemory 8gb
+            - --maxmemory-policy allkeys-lru
+            - --save 900 1
+            - --save 300 10
+            - --save 60 10000
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "8Gi"
+            limits:
+              cpu: "2000m"
+              memory: "16Gi"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: redis-config
+              mountPath: /etc/redis
+          livenessProbe:
+            exec:
+              command: [redis-cli, ping]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cluster
+  namespace: lifegrid
+spec:
+  selector:
+    app: redis-cluster
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: client
+    - port: 16379
+      targetPort: 16379
+      name: gossip
+  clusterIP: None                    # Headless service for StatefulSet

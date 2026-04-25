@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-engine
+  namespace: lifegrid
+  labels:
+    app: ai-engine
+    tier: ai
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: ai-engine
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 3
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ai-engine
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: accelerator
+                    operator: In
+                    values: [nvidia-gpu]   # Prefer GPU nodes
+      containers:
+        - name: ai-engine
+          image: lifegrid/ai-engine:latest
+          ports:
+            - containerPort: 5001
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "4Gi"
+              nvidia.com/gpu: "1"    # Request 1 GPU per pod
+            limits:
+              cpu: "8000m"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          env:
+            - name: PORT
+              value: "5001"
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lifegrid-secrets
+                  key: redis-cluster-url
+            - name: MODELS_DIR
+              value: /app/models
+            - name: TORCH_DEVICE
+              value: cuda              # Use GPU
+            - name: OMP_NUM_THREADS
+              value: "8"
+            - name: UVICORN_WORKERS
+              value: "4"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /app/models
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 60   # Models take time to load
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: ai-models-pvc
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-engine-hpa
+  namespace: lifegrid
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-engine
+  minReplicas: 10
+  maxReplicas: 100
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Pods
+      pods:
+        metric:
+          name: ai_inference_queue_depth
+        target:
+          type: AverageValue
+          averageValue: "50"         # Scale when queue > 50 per pod
