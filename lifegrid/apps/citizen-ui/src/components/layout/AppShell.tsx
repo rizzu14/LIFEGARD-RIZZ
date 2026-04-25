@@ -7,6 +7,8 @@ import { useOffline } from '../../hooks/useOffline';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useSocket } from '../../hooks/useSocket';
 import { LoadingScreen } from '../ui/LoadingScreen';
+import { CallOverlay } from '../call/CallOverlay';
+import { useEmergencyCall } from '../../hooks/useEmergencyCall';
 
 const HomeScreen   = React.lazy(() => import('../../screens/HomeScreen'));
 const TrackScreen  = React.lazy(() => import('../../screens/TrackScreen'));
@@ -30,6 +32,21 @@ export function AppShell() {
   const { isOnline } = useOffline();
   const { location } = useGeolocation();
   const { socket } = useSocket();
+
+  // ── Emergency call engine ─────────────────────────────────
+  const { startCall } = useEmergencyCall();
+
+  // Auto-start call when callSession enters 'initiating' state
+  useEffect(() => {
+    return useAppStore.subscribe(
+      (state) => state.callSession,
+      (session) => {
+        if (session?.state === 'initiating' && session.incidentId) {
+          startCall(session.incidentId);
+        }
+      },
+    );
+  }, [startCall]);
 
   useEffect(() => {
     if (location) setUserLocation(location);
@@ -84,11 +101,48 @@ export function AppShell() {
         source: 'SYSTEM',
       });
     });
+
+    // ── Call events ───────────────────────────────────────
+    socket.on('CALL_ANSWER', (data: any) => {
+      const { updateCallState, updateCallSession } = useAppStore.getState();
+      updateCallState('connected');
+      updateCallSession({
+        operatorId:   data.operatorId,
+        operatorName: data.operatorName ?? 'LIFEGRID Operator',
+        connectedAt:  new Date().toISOString(),
+      });
+    });
+
+    socket.on('CALL_OPERATOR_TRANSCRIPT', (data: any) => {
+      const { addTranscriptLine } = useAppStore.getState();
+      addTranscriptLine({
+        id:        data.id ?? String(Date.now()),
+        speaker:   'operator',
+        text:      data.text,
+        timestamp: data.timestamp ?? new Date().toISOString(),
+        isFinal:   true,
+        language:  data.language ?? 'en',
+      });
+    });
+
+    socket.on('CALL_AI_SUGGESTION', (data: any) => {
+      const { addAISuggestion } = useAppStore.getState();
+      addAISuggestion(data.suggestion);
+    });
+
+    socket.on('CALL_ENDED_BY_OPERATOR', () => {
+      const { endCall } = useAppStore.getState();
+      endCall();
+    });
     return () => {
       socket.off('RESPONDER_LOCATION_UPDATE');
       socket.off('GUIDANCE_MESSAGE');
       socket.off('SENSOR_ALERT');
       socket.off('SYSTEM_ALERT');
+      socket.off('CALL_ANSWER');
+      socket.off('CALL_OPERATOR_TRANSCRIPT');
+      socket.off('CALL_AI_SUGGESTION');
+      socket.off('CALL_ENDED_BY_OPERATOR');
     };
   }, [socket, updateResponderPosition, addChatMessage, addAlert]);
 
@@ -136,6 +190,11 @@ export function AppShell() {
 
       {/* Bottom nav: always at the bottom, never overlaps content */}
       <BottomNav />
+
+      {/* Emergency call overlay — floats above everything */}
+      <AnimatePresence>
+        <CallOverlay />
+      </AnimatePresence>
     </div>
   );
 }

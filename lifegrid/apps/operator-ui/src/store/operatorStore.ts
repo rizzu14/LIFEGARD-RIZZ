@@ -140,7 +140,7 @@ export interface ResponderPosition {
 }
 
 export type LeftPanelTab = 'incidents' | 'priority' | 'agencies' | 'log';
-export type RightPanelTab = 'detail' | 'ai' | 'comm' | 'satellite';
+export type RightPanelTab = 'detail' | 'ai' | 'comm' | 'satellite' | 'call';
 
 // ── Store ─────────────────────────────────────────────────────
 

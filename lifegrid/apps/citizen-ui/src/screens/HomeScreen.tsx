@@ -160,6 +160,18 @@ export default function HomeScreen() {
     // Always navigate to track — never stay stuck
     setActiveTab('track');
     setIsSubmitting(false);
+
+    // ── Auto-initiate emergency call ──────────────────────
+    // Slight delay so track screen renders first
+    setTimeout(() => {
+      const { initiateCall } = useAppStore.getState();
+      const incidentId = useAppStore.getState().activeIncidentId;
+      if (incidentId) {
+        initiateCall(incidentId);
+        // The useEmergencyCall hook in AppShell will pick this up
+        // and start the WebRTC connection automatically
+      }
+    }, 800);
   }, [
     voiceTranscript, language, userLocation,
     enqueueOffline, setActiveIncident, setActiveTab,

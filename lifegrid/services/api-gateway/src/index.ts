@@ -34,6 +34,7 @@ import { IncidentPipeline } from './pipeline/IncidentPipeline';
 import { DatabaseManager } from './database/DatabaseManager';
 import { MongoManager } from './database/MongoManager';
 import { RedisManager } from './cache/RedisManager';
+import { setupCallSignaling, getCallStats } from './call/CallSignalingServer';
 
 const PORT = parseInt(process.env.PORT ?? '4000', 10);
 const WS_PORT = parseInt(process.env.WS_PORT ?? '4001', 10);
@@ -108,6 +109,7 @@ async function bootstrap(): Promise<void> {
         mqtt: MQTTBroker.isConnected(),
         ai: AIEngine.isReady(),
       },
+      calls: getCallStats(),
     });
   });
 
@@ -140,6 +142,9 @@ async function bootstrap(): Promise<void> {
   });
 
   WebSocketManager.initialize(io);
+
+  // ── WebRTC Call Signaling ─────────────────────────────────
+  setupCallSignaling(io);
 
   // ── MQTT IoT broker ───────────────────────────────────────
   await MQTTBroker.connect();

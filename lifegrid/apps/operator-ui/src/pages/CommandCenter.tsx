@@ -39,6 +39,7 @@ import { IncidentDetail }   from '../components/panels/IncidentDetail';
 import { AISuggestionsPanel } from '../components/panels/AISuggestionsPanel';
 import { CommPanel }        from '../components/panels/CommPanel';
 import { SatellitePanel }   from '../components/panels/SatellitePanel';
+import { CallPanel }        from '../components/panels/CallPanel';
 
 // Overlays
 import { AlertBanner }      from '../components/ui/AlertBanner';
@@ -60,6 +61,7 @@ const RIGHT_TABS: { id: RightPanelTab; label: string }[] = [
   { id: 'ai',        label: 'AI'        },
   { id: 'comm',      label: 'Comms'     },
   { id: 'satellite', label: 'Satellite' },
+  { id: 'call',      label: 'Call'      },
 ];
 
 export default function CommandCenter() {
@@ -357,6 +359,11 @@ export default function CommandCenter() {
           {rightPanelTab === 'satellite' && (
             <motion.div key="satellite" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
               <SatellitePanel />
+            </motion.div>
+          )}
+          {rightPanelTab === 'call' && (
+            <motion.div key="call" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+              <CallPanel />
             </motion.div>
           )}
         </AnimatePresence>

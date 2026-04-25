@@ -13,11 +13,62 @@ export type AppTab = 'home' | 'track' | 'chat' | 'report' | 'alerts';
 
 export type SOSState =
   | 'idle'
-  | 'holding'      // user is long-pressing
-  | 'confirming'   // 3-second countdown
-  | 'submitting'   // API call in flight
-  | 'active'       // incident created, help dispatched
-  | 'resolved';    // incident closed
+  | 'holding'
+  | 'confirming'
+  | 'submitting'
+  | 'active'
+  | 'resolved';
+
+// ── Call system types ─────────────────────────────────────────
+
+export type CallState =
+  | 'idle'
+  | 'initiating'    // SOS triggered, setting up WebRTC
+  | 'ringing'       // Connecting to operator
+  | 'connected'     // Live call active
+  | 'on_hold'       // Operator placed on hold
+  | 'failed'        // Connection failed
+  | 'ended';        // Call ended
+
+export type CallFallbackMode = 'webrtc' | 'voip_retry' | 'alternate_number' | 'text_only';
+
+export interface CallSession {
+  sessionId:       string;
+  incidentId:      string;
+  state:           CallState;
+  operatorId?:     string;
+  operatorName?:   string;
+  operatorAvatar?: string;
+  startedAt?:      string;
+  connectedAt?:    string;
+  endedAt?:        string;
+  durationSeconds: number;
+  isMuted:         boolean;
+  isSpeaker:       boolean;
+  signalStrength:  number;   // 0–4 bars
+  fallbackMode:    CallFallbackMode;
+  retryCount:      number;
+  liveTranscript:  TranscriptLine[];
+  aiKeywords:      DetectedKeyword[];
+  aiSuggestions:   string[];
+}
+
+export interface TranscriptLine {
+  id:        string;
+  speaker:   'citizen' | 'operator' | 'ai';
+  text:      string;
+  timestamp: string;
+  isFinal:   boolean;
+  language:  string;
+}
+
+export interface DetectedKeyword {
+  keyword:       string;
+  category:      string;   // 'medical' | 'fire' | 'security' etc.
+  confidence:    number;
+  detectedAt:    string;
+  actionTaken?:  string;
+}
 
 export interface ResponderPosition {
   responderId: string;
@@ -114,6 +165,21 @@ interface AppState {
 
   // Incident history
   reportedIncidents: string[];
+
+  // ── Call system ──────────────────────────────────────────
+  callSession: CallSession | null;
+  isCallOverlayVisible: boolean;
+  initiateCall: (incidentId: string) => void;
+  updateCallState: (state: CallState) => void;
+  updateCallSession: (updates: Partial<CallSession>) => void;
+  endCall: () => void;
+  toggleMute: () => void;
+  toggleSpeaker: () => void;
+  addTranscriptLine: (line: TranscriptLine) => void;
+  addDetectedKeyword: (kw: DetectedKeyword) => void;
+  addAISuggestion: (suggestion: string) => void;
+  setCallOverlayVisible: (v: boolean) => void;
+  updateSignalStrength: (bars: number) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -232,6 +298,97 @@ export const useAppStore = create<AppState>()(
 
         // ── History ──────────────────────────────────────────
         reportedIncidents: [],
+
+        // ── Call system ──────────────────────────────────────
+        callSession: null,
+        isCallOverlayVisible: false,
+
+        initiateCall: (incidentId) => set((s) => {
+          s.callSession = {
+            sessionId:       `call-${Date.now()}`,
+            incidentId,
+            state:           'initiating',
+            durationSeconds: 0,
+            isMuted:         false,
+            isSpeaker:       true,
+            signalStrength:  4,
+            fallbackMode:    'webrtc',
+            retryCount:      0,
+            liveTranscript:  [],
+            aiKeywords:      [],
+            aiSuggestions:   [],
+          };
+          s.isCallOverlayVisible = true;
+        }),
+
+        updateCallState: (state) => set((s) => {
+          if (s.callSession) {
+            s.callSession.state = state;
+            if (state === 'connected' && !s.callSession.connectedAt) {
+              s.callSession.connectedAt = new Date().toISOString();
+            }
+            if (state === 'ended' || state === 'failed') {
+              s.callSession.endedAt = new Date().toISOString();
+            }
+          }
+        }),
+
+        updateCallSession: (updates) => set((s) => {
+          if (s.callSession) Object.assign(s.callSession, updates);
+        }),
+
+        endCall: () => set((s) => {
+          if (s.callSession) {
+            s.callSession.state = 'ended';
+            s.callSession.endedAt = new Date().toISOString();
+          }
+          s.isCallOverlayVisible = false;
+        }),
+
+        toggleMute: () => set((s) => {
+          if (s.callSession) s.callSession.isMuted = !s.callSession.isMuted;
+        }),
+
+        toggleSpeaker: () => set((s) => {
+          if (s.callSession) s.callSession.isSpeaker = !s.callSession.isSpeaker;
+        }),
+
+        addTranscriptLine: (line) => set((s) => {
+          if (!s.callSession) return;
+          const existing = s.callSession.liveTranscript.findIndex(t => t.id === line.id);
+          if (existing >= 0) {
+            s.callSession.liveTranscript[existing] = line;
+          } else {
+            s.callSession.liveTranscript.push(line);
+            if (s.callSession.liveTranscript.length > 200) {
+              s.callSession.liveTranscript = s.callSession.liveTranscript.slice(-200);
+            }
+          }
+        }),
+
+        addDetectedKeyword: (kw) => set((s) => {
+          if (!s.callSession) return;
+          s.callSession.aiKeywords.push(kw);
+          if (s.callSession.aiKeywords.length > 50) {
+            s.callSession.aiKeywords = s.callSession.aiKeywords.slice(-50);
+          }
+        }),
+
+        addAISuggestion: (suggestion) => set((s) => {
+          if (!s.callSession) return;
+          if (!s.callSession.aiSuggestions.includes(suggestion)) {
+            s.callSession.aiSuggestions.unshift(suggestion);
+            if (s.callSession.aiSuggestions.length > 5) {
+              s.callSession.aiSuggestions = s.callSession.aiSuggestions.slice(0, 5);
+            }
+          }
+        }),
+
+        setCallOverlayVisible: (v) => set((s) => { s.isCallOverlayVisible = v; }),
+
+        updateSignalStrength: (bars) => set((s) => {
+          if (s.callSession) s.callSession.signalStrength = bars;
+        }),
       })),
       {
         name: 'lifegrid-app-v2',
