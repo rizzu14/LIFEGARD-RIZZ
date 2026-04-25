@@ -21,6 +21,9 @@ import { useVoice, speak } from '../hooks/useVoice';
 import { useOffline } from '../hooks/useOffline';
 import { api } from '../lib/api';
 import { LanguageSelector } from '../components/ui/LanguageSelector';
+import { LiveStatusPanel } from '../components/emergency/LiveStatusPanel';
+import { EmergencyMap } from '../components/emergency/EmergencyMap';
+import { classifyEmergency } from '../hooks/useEmergencyClassifier';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── SOS hold duration ─────────────────────────────────────────
@@ -50,11 +53,22 @@ export default function HomeScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
 
-  // ── Voice command ─────────────────────────────────────────
+  // ── Voice command + AI classification ────────────────────
 
   const { isListening, isSupported: voiceSupported, toggleListening } = useVoice({
     onResult: ({ transcript, isFinal }) => {
       setVoiceTranscript(transcript);
+
+      // Run AI classification on every interim result
+      // so the Live Status Panel updates as user speaks
+      if (transcript.length > 3) {
+        const result = classifyEmergency(transcript);
+        if (result.type !== 'UNKNOWN') {
+          // Classification is passed to LiveStatusPanel via voiceTranscript prop
+          // Panel reads it and updates emergency type display in real time
+        }
+      }
+
       if (isFinal) {
         const lower = transcript.toLowerCase();
         const triggerWords = ['sos', 'emergency', 'help', 'ayuda', 'urgence', 'مساعدة', '救命'];
@@ -324,6 +338,16 @@ export default function HomeScreen() {
             {sosState === 'holding' && 'Keep holding...'}
             {sosState === 'active'  && 'Help dispatched · See tracking'}
           </motion.p>
+        </div>
+
+        {/* ── Live Status Panel + Map ────────────────────── */}
+        {/* Appears dynamically when SOS is triggered        */}
+        <div className="w-full space-y-3">
+          {/* Embedded emergency map — shows user + responders */}
+          <EmergencyMap height={180} />
+
+          {/* Live status panel — all data updates in real time */}
+          <LiveStatusPanel voiceTranscript={voiceTranscript} />
         </div>
 
         {/* ── Quick actions ─────────────────────────────── */}

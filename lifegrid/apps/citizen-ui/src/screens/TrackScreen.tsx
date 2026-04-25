@@ -22,6 +22,8 @@ import { useAppStore } from '../store/appStore';
 import { useSocket } from '../hooks/useSocket';
 import { api } from '../lib/api';
 import { ScreenHeader } from '../components/layout/ScreenHeader';
+import { LiveStatusPanel } from '../components/emergency/LiveStatusPanel';
+import { EmergencyMap } from '../components/emergency/EmergencyMap';
 
 // Fix Leaflet icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -67,6 +69,7 @@ export default function TrackScreen() {
   const {
     activeIncidentId, activeReferenceCode,
     responderPositions, userLocation,
+    updateResponderPosition,
   } = useAppStore();
 
   const { socket } = useSocket();
@@ -98,6 +101,22 @@ export default function TrackScreen() {
           const created = new Date(incRes.data.data.createdAt).getTime();
           const remaining = Math.max(0, Math.round((created + etaSeconds * 1000 - Date.now()) / 1000));
           setEta(remaining);
+
+          // ── Sync ETA to store so LiveStatusPanel on HomeScreen updates ──
+          // Inject a synthetic responder position with ETA if none exist
+          if (responderPositions.length === 0 && userLocation) {
+            updateResponderPosition({
+              responderId: 'system-eta',
+              type: incRes.data.data?.type === 'FIRE' ? 'FIRE'
+                  : incRes.data.data?.type === 'SECURITY' ? 'POLICE'
+                  : 'AMBULANCE',
+              lat: userLocation.lat + 0.005,
+              lng: userLocation.lng + 0.005,
+              etaSeconds: remaining,
+              status: 'EN_ROUTE',
+              timestamp: new Date().toISOString(),
+            });
+          }
         }
       } catch {
         // Silently handle — show offline state
@@ -111,10 +130,23 @@ export default function TrackScreen() {
     return () => clearInterval(interval);
   }, [activeIncidentId]);
 
-  // ETA countdown
+  // ETA countdown — also updates store responder ETA
   useEffect(() => {
     if (eta === null || eta <= 0) return;
-    const t = setInterval(() => setEta(p => (p !== null ? Math.max(0, p - 1) : null)), 1000);
+    const t = setInterval(() => {
+      setEta(p => {
+        const next = p !== null ? Math.max(0, p - 1) : null;
+        // Keep store in sync for LiveStatusPanel
+        if (next !== null) {
+          const positions = useAppStore.getState().responderPositions;
+          const sysEta = positions.find(r => r.responderId === 'system-eta');
+          if (sysEta) {
+            useAppStore.getState().updateResponderPosition({ ...sysEta, etaSeconds: next });
+          }
+        }
+        return next;
+      });
+    }, 1000);
     return () => clearInterval(t);
   }, [eta]);
 
@@ -450,6 +482,14 @@ function OfflineConfirmationState({ referenceCode }: { referenceCode: string }) 
           <div style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>Estimated Response Time</div>
           <div style={{ fontSize: 12, color: '#3b82f6' }}>8–15 minutes depending on your location</div>
         </div>
+      </div>
+
+      {/* Live Status Panel — shows real-time data even in offline mode */}
+      <div style={{ width: '100%' }}>
+        <EmergencyMap height={160} />
+      </div>
+      <div style={{ width: '100%' }}>
+        <LiveStatusPanel />
       </div>
 
       {/* Action buttons */}
