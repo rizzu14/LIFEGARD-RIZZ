@@ -1,5 +1,10 @@
 [build]
-  publish = "lifegrid/apps/citizen-ui/dist"
+  base    = "lifegrid/apps/citizen-ui"
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
 
 [[redirects]]
   from   = "/*"
