@@ -1,0 +1,26 @@
+[build]
+  base    = "lifegrid/apps/citizen-ui"
+  command = "npm run build"
+  publish = "lifegrid/apps/citizen-ui/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS    = "--no-workspaces"
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Permissions-Policy     = "camera=(), microphone=(self), geolocation=(self)"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
