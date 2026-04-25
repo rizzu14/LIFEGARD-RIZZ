@@ -1,6 +1,7 @@
 [build]
-  publish = "lifegrid/apps/citizen-ui/dist"
-  command = ""
+  base    = "lifegrid/apps/citizen-ui"
+  command = "echo 'Using pre-built dist'"
+  publish = "dist"
 
 [[redirects]]
   from   = "/*"
