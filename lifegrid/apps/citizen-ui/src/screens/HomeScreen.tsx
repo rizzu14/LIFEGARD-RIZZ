@@ -1,20 +1,11 @@
 // ============================================================
-// LIFEGRID – Screen 1: Home
-// Emergency-first. SOS button dominates the entire screen.
-//
-// UX Behavior:
-//   - SOS requires 2-second hold to prevent accidental triggers
-//   - Hold progress shown as ring countdown
-//   - On release before 2s: cancel with haptic feedback
-//   - On complete: 3-second confirmation countdown with cancel option
-//   - On confirm: submit incident, switch to Track tab
-//   - Voice command "SOS" / "Emergency" triggers same flow
-//   - Offline: queues to local storage, submits when online
+// LIFEGRID – Home Screen  v3.0
+// Calm · Trustworthy · Emergency-first
 // ============================================================
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Wifi, WifiOff, Mic, MicOff, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Phone, Wifi, WifiOff, Mic, ChevronRight, Shield, Clock } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useHaptic } from '../hooks/useHaptic';
 import { useVoice, speak } from '../hooks/useVoice';
@@ -25,9 +16,16 @@ import { LiveStatusPanel } from '../components/emergency/LiveStatusPanel';
 import { classifyEmergency } from '../hooks/useEmergencyClassifier';
 import { v4 as uuidv4 } from 'uuid';
 
-// ── SOS hold duration ─────────────────────────────────────────
-const HOLD_DURATION_MS  = 2000;
-const CONFIRM_DURATION  = 3;   // seconds countdown before auto-submit
+const HOLD_DURATION_MS = 2000;
+const CONFIRM_DURATION = 3;
+
+// ── Rotating support messages ─────────────────────────────────
+const SUPPORT_MESSAGES = [
+  'You are safe. Help is one tap away.',
+  'Stay calm. We are ready to assist you.',
+  'Emergency support available 24/7.',
+  'You are not alone. We are here.',
+];
 
 export default function HomeScreen() {
   const {
@@ -40,122 +38,81 @@ export default function HomeScreen() {
   const { haptic } = useHaptic();
   const { isOnline } = useOffline();
 
-  // Hold mechanics
-  const holdTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-  const holdStartRef    = useRef<number>(0);
-  const [holdPct, setHoldPct] = useState(0);
-
-  // Confirm countdown
-  const [countdown, setCountdown] = useState(CONFIRM_DURATION);
+  const holdTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const holdStartRef  = useRef<number>(0);
+  const [holdPct, setHoldPct]       = useState(0);
+  const [countdown, setCountdown]   = useState(CONFIRM_DURATION);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [msgIdx, setMsgIdx] = useState(0);
 
-  // ── Voice command + AI classification ────────────────────
+  // Rotate support message every 5s
+  useEffect(() => {
+    const t = setInterval(() => setMsgIdx(i => (i + 1) % SUPPORT_MESSAGES.length), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   const { isListening, isSupported: voiceSupported, toggleListening } = useVoice({
     onResult: ({ transcript, isFinal }) => {
       setVoiceTranscript(transcript);
-
-      // Run AI classification on every interim result
-      // so the Live Status Panel updates as user speaks
-      if (transcript.length > 3) {
-        const result = classifyEmergency(transcript);
-        if (result.type !== 'UNKNOWN') {
-          // Classification is passed to LiveStatusPanel via voiceTranscript prop
-          // Panel reads it and updates emergency type display in real time
-        }
-      }
-
+      if (transcript.length > 3) classifyEmergency(transcript);
       if (isFinal) {
         const lower = transcript.toLowerCase();
         const triggerWords = ['sos', 'emergency', 'help', 'ayuda', 'urgence', 'مساعدة', '救命'];
-        if (triggerWords.some(w => lower.includes(w))) {
-          haptic('sos');
-          beginConfirm();
-        }
+        if (triggerWords.some(w => lower.includes(w))) { haptic('sos'); beginConfirm(); }
       }
     },
   });
 
-  // ── Hold mechanics ────────────────────────────────────────
+  // ── Hold ──────────────────────────────────────────────────
 
   const startHold = useCallback(() => {
     if (sosState !== 'idle') return;
     haptic('tap');
     setSosState('holding');
     holdStartRef.current = Date.now();
-
     holdTimerRef.current = setInterval(() => {
       const elapsed = Date.now() - holdStartRef.current;
       const pct = Math.min((elapsed / HOLD_DURATION_MS) * 100, 100);
       setHoldPct(pct);
       setSosHoldProgress(pct);
-
-      if (pct >= 100) {
-        clearInterval(holdTimerRef.current!);
-        haptic('success');
-        beginConfirm();
-      }
+      if (pct >= 100) { clearInterval(holdTimerRef.current!); haptic('success'); beginConfirm(); }
     }, 16);
   }, [sosState, haptic, setSosState, setSosHoldProgress]);
 
   const cancelHold = useCallback(() => {
     if (sosState !== 'holding') return;
     clearInterval(holdTimerRef.current!);
-    haptic('tap');
-    setSosState('idle');
-    setHoldPct(0);
-    setSosHoldProgress(0);
+    haptic('tap'); setSosState('idle'); setHoldPct(0); setSosHoldProgress(0);
   }, [sosState, haptic, setSosState, setSosHoldProgress]);
 
   const beginConfirm = useCallback(() => {
-    setSosState('confirming');
-    setCountdown(CONFIRM_DURATION);
-    setHoldPct(0);
-
+    setSosState('confirming'); setCountdown(CONFIRM_DURATION); setHoldPct(0);
     countdownRef.current = setInterval(() => {
       setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownRef.current!);
-          submitSOS();
-          return 0;
-        }
-        haptic('tick');
-        return prev - 1;
+        if (prev <= 1) { clearInterval(countdownRef.current!); submitSOS(); return 0; }
+        haptic('tick'); return prev - 1;
       });
     }, 1000);
   }, [haptic, setSosState]);
 
   const cancelConfirm = useCallback(() => {
     clearInterval(countdownRef.current!);
-    haptic('tap');
-    setSosState('idle');
-    setCountdown(CONFIRM_DURATION);
-    setHoldPct(0);
+    haptic('tap'); setSosState('idle'); setCountdown(CONFIRM_DURATION); setHoldPct(0);
   }, [haptic, setSosState]);
 
-  // ── Submit SOS ────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────
 
   const submitSOS = useCallback(async () => {
-    setSosState('submitting');
-    setIsSubmitting(true);
-    haptic('sos');
-
+    setSosState('submitting'); setIsSubmitting(true); haptic('sos');
     const payload = {
       rawInput: voiceTranscript || 'SOS – Emergency button activated',
-      language,
-      source: 'PANIC_BUTTON',
-      location: userLocation ?? undefined,
+      language, source: 'PANIC_BUTTON', location: userLocation ?? undefined,
     };
-
-    // Generate a local reference code immediately — works offline
     const localRef = `SOS-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(Math.random()*999999).toString().padStart(6,'0')}`;
     const localId  = uuidv4();
-
     try {
-      // Try backend first (non-blocking — 3s timeout)
       const res = await Promise.race([
         api.post('/incidents/report', payload),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
@@ -164,93 +121,87 @@ export default function HomeScreen() {
       setActiveIncident(incidentId, referenceCode);
       speak('Help is on the way. Stay calm.', language);
     } catch {
-      // Backend unavailable — use local confirmation (always works)
       enqueueOffline({ id: localId, type: 'SOS', payload, timestamp: new Date().toISOString(), retries: 0 });
       setActiveIncident(localId, localRef);
       speak('Emergency alert sent. Help is being dispatched. Stay calm.', language);
     }
-
-    // Always navigate to track — never stay stuck
-    setActiveTab('track');
-    setIsSubmitting(false);
-
-    // ── Auto-initiate emergency call ──────────────────────
-    // Slight delay so track screen renders first
+    setActiveTab('track'); setIsSubmitting(false);
     setTimeout(() => {
       const { initiateCall } = useAppStore.getState();
       const incidentId = useAppStore.getState().activeIncidentId;
-      if (incidentId) {
-        initiateCall(incidentId);
-        // The useEmergencyCall hook in AppShell will pick this up
-        // and start the WebRTC connection automatically
-      }
+      if (incidentId) initiateCall(incidentId);
     }, 800);
-  }, [
-    voiceTranscript, language, userLocation,
-    enqueueOffline, setActiveIncident, setActiveTab,
-    setSosState, haptic,
-  ]);
+  }, [voiceTranscript, language, userLocation, enqueueOffline, setActiveIncident, setActiveTab, setSosState, haptic]);
 
-  // Cleanup on unmount
   useEffect(() => () => {
     clearInterval(holdTimerRef.current!);
     clearInterval(countdownRef.current!);
   }, []);
 
-  // ── Render ────────────────────────────────────────────────
-
   const isActive  = sosState === 'active';
   const isIdle    = sosState === 'idle';
-  const isWorking = !isIdle && !isActive;  // holding / confirming / submitting
+  const isWorking = !isIdle && !isActive;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff', overflow: 'hidden' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden',
+      background: 'linear-gradient(160deg, #f8faff 0%, #f0f4f8 50%, #f5f8ff 100%)',
+    }}>
 
       {/* ── Header ─────────────────────────────────────────── */}
-      <div className="status-bar">
-
-        <div className="flex items-center gap-2 flex-1">
-          <div className="w-5 h-5 border border-gray-200 flex items-center justify-center flex-shrink-0">
-            <span className="text-[7px] font-mono font-bold text-gray-800">LG</span>
+      <div style={{
+        height: 56, paddingTop: 'var(--safe-top)',
+        display: 'flex', alignItems: 'center',
+        paddingLeft: 20, paddingRight: 20, flexShrink: 0,
+        background: 'rgba(255,255,255,0.80)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(0,0,0,0.06)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+          {/* Logo mark */}
+          <div style={{
+            width: 30, height: 30, borderRadius: 8,
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 9, fontWeight: 900, color: '#fff', letterSpacing: '0.05em' }}>LG</span>
           </div>
           <div>
-            <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-gray-900">LIFEGRID</div>
-            <div className="text-[8px] font-mono text-gray-400">
-              {isOnline ? 'System Ready' : 'Offline Mode'}
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', color: '#0f172a', textTransform: 'uppercase' }}>LIFEGRID</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: isOnline ? '#22c55e' : '#f59e0b', flexShrink: 0 }} />
+              <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+                {isOnline ? 'SYSTEM READY' : 'OFFLINE MODE'}
+              </span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {isOnline
-            ? <Wifi className="w-4 h-4 text-green-600" />
-            : <WifiOff className="w-4 h-4 text-yellow-500 animate-pulse" />
+            ? <Wifi style={{ width: 15, height: 15, color: '#22c55e' }} />
+            : <WifiOff style={{ width: 15, height: 15, color: '#f59e0b' }} />
           }
           <LanguageSelector value={language} onChange={setLanguage} compact />
         </div>
       </div>
 
-      {/* ── Slim status strip — sits below header, never blocks body ── */}
+      {/* ── Status strip ───────────────────────────────────── */}
       <LiveStatusPanel voiceTranscript={voiceTranscript} />
 
       {/* ── Body ───────────────────────────────────────────── */}
-      <div
-        className="screen-body"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '24px 24px 16px',
-          gap: 0,
-        }}
-      >
+      <div style={{
+        flex: 1, overflowY: 'auto', overflowX: 'hidden',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', padding: '20px 20px 16px',
+        gap: 0,
+      }}>
 
-        {/* ── Active incident banner (replaces status bar) ── */}
+        {/* Active incident banner */}
         <AnimatePresence>
           {isActive && (
             <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               style={{ width: '100%', marginBottom: 16 }}
             >
               <ActiveIncidentBanner />
@@ -258,93 +209,95 @@ export default function HomeScreen() {
           )}
         </AnimatePresence>
 
-        {/* ── System status (idle only) ─────────────────── */}
+        {/* Trust indicators (idle only) */}
         <AnimatePresence>
           {isIdle && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{ width: '100%', marginBottom: 16 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ width: '100%', marginBottom: 12 }}
             >
-              <SystemStatusBar isOnline={isOnline} />
+              <TrustBar isOnline={isOnline} />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── SOS Button — always centered ─────────────── */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 24,
-            width: '100%',
-          }}
-        >
+        {/* ── SOS zone ─────────────────────────────────────── */}
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 20, width: '100%', position: 'relative',
+        }}>
+
           {/* Countdown overlay */}
           <AnimatePresence>
             {sosState === 'confirming' && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 style={{
-                  position: 'absolute', inset: 0,
+                  position: 'absolute', inset: 0, zIndex: 50,
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.97)', zIndex: 50,
+                  background: 'rgba(248,250,255,0.97)',
+                  backdropFilter: 'blur(8px)',
                 }}
               >
-                <CountdownOverlay
-                  countdown={countdown}
-                  total={CONFIRM_DURATION}
-                  onCancel={cancelConfirm}
-                />
+                <CountdownOverlay countdown={countdown} total={CONFIRM_DURATION} onCancel={cancelConfirm} />
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* SOS ring + button */}
+          {/* Soft glow background behind SOS */}
+          <div style={{
+            position: 'absolute',
+            width: 280, height: 280,
+            borderRadius: '50%',
+            background: isActive
+              ? 'radial-gradient(circle, rgba(34,197,94,0.10) 0%, transparent 70%)'
+              : 'radial-gradient(circle, rgba(239,68,68,0.07) 0%, transparent 70%)',
+            pointerEvents: 'none',
+            transition: 'background 0.6s ease',
+          }} />
+
+          {/* SOS button container */}
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 240, height: 240 }}>
-            {/* Rings rendered BEHIND button via z-index, pointer-events disabled so they never block clicks */}
-            {(sosState === 'idle' || sosState === 'holding') && (
+
+            {/* Calm pulse rings */}
+            {(isIdle || sosState === 'holding') && (
               <>
-                <div className="sos-ring" style={{ pointerEvents: 'none' }} />
-                <div className="sos-ring" style={{ pointerEvents: 'none' }} />
-                <div className="sos-ring" style={{ pointerEvents: 'none' }} />
+                <div className="sos-ring-calm" style={{ pointerEvents: 'none' }} />
+                <div className="sos-ring-calm sos-ring-calm--2" style={{ pointerEvents: 'none' }} />
               </>
             )}
 
+            {/* Hold progress arc */}
             {sosState === 'holding' && (
-              <svg
-                style={{ position: 'absolute', transform: 'rotate(-90deg)', pointerEvents: 'none', zIndex: 1 }}
-                width="200" height="200"
-              >
-                <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="3" />
+              <svg style={{ position: 'absolute', transform: 'rotate(-90deg)', pointerEvents: 'none', zIndex: 1 }} width="200" height="200">
+                <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(239,68,68,0.08)" strokeWidth="4" />
                 <circle
-                  cx="100" cy="100" r="88"
-                  fill="none" stroke="#e53935" strokeWidth="3" strokeLinecap="round"
+                  cx="100" cy="100" r="88" fill="none"
+                  stroke="url(#holdGrad)" strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={`${2 * Math.PI * 88}`}
                   strokeDashoffset={`${2 * Math.PI * 88 * (1 - holdPct / 100)}`}
                   style={{ transition: 'stroke-dashoffset 16ms linear' }}
                 />
+                <defs>
+                  <linearGradient id="holdGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#f87171" />
+                    <stop offset="100%" stopColor="#ef4444" />
+                  </linearGradient>
+                </defs>
               </svg>
             )}
 
+            {/* THE SOS BUTTON */}
             <motion.button
-              className={`sos-button ${isActive ? 'triggered' : ''}`}
+              className={`sos-btn-v3 ${isActive ? 'sos-btn-v3--active' : ''} ${sosState === 'holding' ? 'sos-btn-v3--holding' : ''}`}
               style={{ position: 'relative', zIndex: 2, touchAction: 'none' }}
-              onPointerDown={(e) => {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                if (sosState === 'idle') startHold();
-              }}
+              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); if (sosState === 'idle') startHold(); }}
               onPointerUp={() => { if (sosState === 'holding') cancelHold(); }}
               onPointerLeave={() => { if (sosState === 'holding') cancelHold(); }}
               onPointerCancel={() => { if (sosState === 'holding') cancelHold(); }}
-              animate={sosState === 'holding' ? { scale: 1.04 } : { scale: 1 }}
+              animate={sosState === 'holding' ? { scale: 1.05 } : { scale: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               aria-label="SOS Emergency Button — hold for 2 seconds to activate"
               aria-pressed={isActive}
@@ -354,90 +307,94 @@ export default function HomeScreen() {
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  style={{ width: 32, height: 32, border: '2px solid #111827', borderTopColor: 'transparent', borderRadius: '50%' }}
+                  style={{ width: 28, height: 28, border: '2.5px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%' }}
                 />
               ) : (
                 <>
-                  <span className="sos-label">SOS</span>
-                  <span className="sos-sub">
-                    {sosState === 'holding' ? 'HOLD...' : 'HOLD 2s'}
+                  <span className="sos-btn-v3__label">SOS</span>
+                  <span className="sos-btn-v3__sub">
+                    {sosState === 'holding' ? 'HOLD...' : isActive ? 'ACTIVE' : 'HOLD 2s'}
                   </span>
                 </>
               )}
             </motion.button>
           </div>
 
-          {/* Instruction text */}
+          {/* Instruction / state text */}
           <motion.p
             key={sosState}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.15em', textTransform: 'uppercase', margin: 0 }}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.15em', textTransform: 'uppercase', margin: 0 }}
           >
             {isIdle    && 'Press and hold to activate'}
-            {isWorking && 'Keep holding...'}
+            {isWorking && 'Keep holding…'}
             {isActive  && 'Help dispatched · See tracking'}
           </motion.p>
+
+          {/* Support message (idle only) */}
+          <AnimatePresence mode="wait">
+            {isIdle && (
+              <motion.div
+                key={msgIdx}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.5 }}
+                style={{
+                  padding: '10px 20px',
+                  background: 'rgba(255,255,255,0.7)',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  borderRadius: 99,
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                <p style={{ fontSize: 12, color: '#475569', textAlign: 'center', margin: 0, fontWeight: 500 }}>
+                  {SUPPORT_MESSAGES[msgIdx]}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* ── Quick actions (idle only — clean when active) ─ */}
+        {/* ── Action cards (idle only) ──────────────────────── */}
         <AnimatePresence>
           {isIdle && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}
             >
-              {/* Voice command */}
-              <button
+              {/* Voice command card */}
+              <ActionCard
+                icon={
+                  isListening
+                    ? <VoiceWaveform />
+                    : <Mic style={{ width: 18, height: 18, color: voiceSupported ? '#3b82f6' : '#cbd5e1' }} />
+                }
+                iconBg={isListening ? '#eff6ff' : '#f8faff'}
+                iconBorder={isListening ? '#bfdbfe' : '#e2e8f0'}
+                title={isListening ? 'Listening… tap to stop' : 'Voice Command'}
+                subtitle={voiceTranscript ? `"${voiceTranscript}"` : voiceSupported ? 'Say "SOS" or "Emergency"' : 'Chrome / Edge only'}
+                active={isListening}
+                badge={isListening ? <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite', flexShrink: 0 }} /> : undefined}
                 onClick={() => {
-                  if (!voiceSupported) {
-                    alert('Voice input requires Chrome or Edge browser.');
-                    return;
-                  }
+                  if (!voiceSupported) { alert('Voice input requires Chrome or Edge browser.'); return; }
                   toggleListening();
                 }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 16,
-                  padding: '14px 16px',
-                  border: `2px solid ${isListening ? '#111827' : '#e5e7eb'}`,
-                  background: isListening ? '#f9fafb' : '#ffffff',
-                  borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',
-                }}
-                aria-label={isListening ? 'Stop voice command' : 'Start voice command'}
-              >
-                <div style={{ width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {isListening ? <VoiceWaveform /> : <Mic style={{ width: 18, height: 18, color: voiceSupported ? '#6b7280' : '#d1d5db' }} />}
-                </div>
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
-                    {isListening ? 'Listening… tap to stop' : 'Voice Command'}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                    {voiceTranscript ? `"${voiceTranscript}"` : voiceSupported ? 'Say "SOS" or "Emergency"' : 'Chrome / Edge only'}
-                  </div>
-                </div>
-                {isListening && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite', flexShrink: 0 }} />}
-              </button>
+              />
 
-              {/* Call 911 */}
-              <a
-                href="tel:911"
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 16,
-                  padding: '14px 16px',
-                  border: '2px solid #e5e7eb', background: '#ffffff',
-                  borderRadius: 12, textDecoration: 'none', transition: 'border-color 0.15s',
-                }}
-                aria-label="Call emergency services"
-              >
-                <Phone style={{ width: 18, height: 18, color: '#6b7280', flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Call Emergency Services</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Direct line · Always available</div>
-                </div>
-                <ChevronRight style={{ width: 16, height: 16, color: '#d1d5db', flexShrink: 0 }} />
+              {/* Call 911 card */}
+              <a href="tel:911" style={{ textDecoration: 'none' }} aria-label="Call emergency services">
+                <ActionCard
+                  icon={<Phone style={{ width: 18, height: 18, color: '#22c55e' }} />}
+                  iconBg="#f0fdf4"
+                  iconBorder="#bbf7d0"
+                  title="Call Emergency Services"
+                  subtitle="Direct line · Always available"
+                  chevron
+                />
               </a>
             </motion.div>
           )}
@@ -448,81 +405,140 @@ export default function HomeScreen() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────
+// ── Trust bar ─────────────────────────────────────────────────
 
-function SystemStatusBar({ isOnline }: { isOnline: boolean }) {
+function TrustBar({ isOnline }: { isOnline: boolean }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`} />
-        <span className="text-[10px] font-mono text-gray-400 tracking-widest uppercase">
-          {isOnline ? 'System Operational' : 'Offline Mode Active'}
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '8px 14px',
+      background: 'rgba(255,255,255,0.7)',
+      border: '1px solid rgba(148,163,184,0.15)',
+      borderRadius: 12,
+      backdropFilter: 'blur(8px)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Shield style={{ width: 12, height: 12, color: isOnline ? '#22c55e' : '#f59e0b' }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: isOnline ? '#15803d' : '#92400e', letterSpacing: '0.05em' }}>
+          {isOnline ? 'Connected to LIFEGRID' : 'Offline — local mode'}
         </span>
       </div>
-      <span className="text-[10px] font-mono text-gray-300">
-        {new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <Clock style={{ width: 10, height: 10, color: '#94a3b8' }} />
+        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>Avg response &lt; 5 min</span>
+      </div>
     </div>
   );
 }
+
+// ── Active incident banner ────────────────────────────────────
 
 function ActiveIncidentBanner() {
   const { activeReferenceCode, setActiveTab } = useAppStore();
   return (
     <motion.button
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
       onClick={() => setActiveTab('track')}
-      className="w-full flex items-center gap-3 p-3 border border-green-200 bg-green-50 rounded-lg"
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+        padding: '12px 16px',
+        background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+        border: '1px solid #86efac',
+        borderRadius: 14,
+        boxShadow: '0 2px 12px rgba(34,197,94,0.12)',
+        cursor: 'pointer',
+      }}
     >
-      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-      <div className="flex-1 text-left">
-        <div className="text-[10px] font-bold text-green-700 tracking-widest uppercase">
-          Help Dispatched
-        </div>
-        <div className="text-[9px] font-mono text-gray-500">{activeReferenceCode}</div>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 1.5s infinite', flexShrink: 0 }} />
+      <div style={{ flex: 1, textAlign: 'left' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Help Dispatched</div>
+        <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>{activeReferenceCode}</div>
       </div>
-      <ChevronRight className="w-4 h-4 text-green-600" />
+      <ChevronRight style={{ width: 16, height: 16, color: '#22c55e' }} />
     </motion.button>
   );
 }
 
-function CountdownOverlay({
-  countdown, total, onCancel,
-}: { countdown: number; total: number; onCancel: () => void }) {
-  const radius = 60;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (countdown / total) * circumference;
+// ── Action card ───────────────────────────────────────────────
 
+function ActionCard({
+  icon, iconBg, iconBorder, title, subtitle, active, badge, chevron, onClick,
+}: {
+  icon: React.ReactNode; iconBg: string; iconBorder: string;
+  title: string; subtitle: string;
+  active?: boolean; badge?: React.ReactNode; chevron?: boolean;
+  onClick?: () => void;
+}) {
   return (
-    <div className="flex flex-col items-center gap-8 px-8">
-      <div className="relative flex items-center justify-center">
+    <div
+      onClick={onClick}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+        padding: '14px 16px',
+        background: active ? 'rgba(239,246,255,0.9)' : 'rgba(255,255,255,0.85)',
+        border: `1.5px solid ${active ? '#bfdbfe' : 'rgba(148,163,184,0.2)'}`,
+        borderRadius: 16,
+        boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+        cursor: onClick ? 'pointer' : 'default',
+        backdropFilter: 'blur(8px)',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      <div style={{
+        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+        background: iconBg, border: `1px solid ${iconBorder}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
+      </div>
+      {badge}
+      {chevron && <ChevronRight style={{ width: 15, height: 15, color: '#cbd5e1', flexShrink: 0 }} />}
+    </div>
+  );
+}
+
+// ── Countdown overlay ─────────────────────────────────────────
+
+function CountdownOverlay({ countdown, total, onCancel }: { countdown: number; total: number; onCancel: () => void }) {
+  const radius = 60;
+  const circ   = 2 * Math.PI * radius;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, padding: '0 32px' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <svg width="160" height="160">
-          <circle cx="80" cy="80" r={radius} fill="none" stroke="#eee" strokeWidth="4" />
+          <circle cx="80" cy="80" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="5" />
           <circle
-            cx="80" cy="80" r={radius}
-            fill="none" stroke="#e53935" strokeWidth="4"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={circumference - progress}
-            className="countdown-ring"
-            style={{ transform: 'rotate(-90deg)', transformOrigin: '80px 80px' }}
+            cx="80" cy="80" r={radius} fill="none"
+            stroke="#ef4444" strokeWidth="5" strokeLinecap="round"
+            strokeDasharray={circ}
+            strokeDashoffset={circ - (countdown / total) * circ}
+            style={{ transform: 'rotate(-90deg)', transformOrigin: '80px 80px', transition: 'stroke-dashoffset 1s linear' }}
           />
         </svg>
-        <div className="absolute flex flex-col items-center">
-          <span className="text-5xl font-bold font-mono text-gray-900">{countdown}</span>
-          <span className="text-[10px] font-mono text-gray-400 tracking-widest uppercase">seconds</span>
+        <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <span style={{ fontSize: 48, fontWeight: 800, fontFamily: 'monospace', color: '#0f172a', lineHeight: 1 }}>{countdown}</span>
+          <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#94a3b8', letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: 4 }}>seconds</span>
         </div>
       </div>
-
-      <div className="text-center">
-        <div className="text-lg font-bold text-gray-900 mb-1">Sending SOS</div>
-        <div className="text-sm text-gray-500">Emergency services will be notified</div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>Sending SOS</div>
+        <div style={{ fontSize: 13, color: '#64748b' }}>Emergency services will be notified</div>
       </div>
-
       <button
         onClick={onCancel}
-        className="w-full py-4 border border-gray-300 text-sm font-bold tracking-widest uppercase text-gray-700 hover:border-gray-600 transition-colors"
+        style={{
+          width: '100%', padding: '15px',
+          background: 'rgba(255,255,255,0.9)',
+          border: '1.5px solid #e2e8f0',
+          borderRadius: 14, fontSize: 13, fontWeight: 700,
+          letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: '#475569', cursor: 'pointer',
+          backdropFilter: 'blur(8px)',
+        }}
       >
         Cancel
       </button>
@@ -530,17 +546,20 @@ function CountdownOverlay({
   );
 }
 
+// ── Voice waveform ────────────────────────────────────────────
+
 function VoiceWaveform() {
   return (
-    <div className="flex items-end gap-0.5 h-5">
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 18 }}>
       {[0.3, 0.7, 1.0, 0.6, 0.4, 0.8, 0.5].map((h, i) => (
         <div
           key={i}
-          className="voice-bar"
           style={{
+            width: 3, borderRadius: 2, background: '#3b82f6',
             height: `${h * 100}%`,
+            animation: `voice-wave ${0.6 + i * 0.08}s ease-in-out infinite alternate`,
             animationDelay: `${i * 0.1}s`,
-            animationDuration: `${0.6 + i * 0.08}s`,
+            transformOrigin: 'bottom',
           }}
         />
       ))}
