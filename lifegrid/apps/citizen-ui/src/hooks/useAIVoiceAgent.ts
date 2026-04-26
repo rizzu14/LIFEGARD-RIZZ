@@ -1,19 +1,13 @@
 // ============================================================
-// LIFEGRID – AI Voice Agent Hook  v2
-// Fixed: stale closures, recognition loop, TTS fallback
+// LIFEGRID – AI Voice Agent  v3
+// Clean sequential state machine — no overlapping TTS/STT
 // ============================================================
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
-// ── Types ─────────────────────────────────────────────────────
-
-export type AgentStatus =
-  | 'idle' | 'activating' | 'speaking' | 'listening' | 'processing' | 'ended';
-
-export type DispatchStatus =
-  | 'TRIGGERED' | 'COLLECTING_INFO' | 'DISPATCHING' | 'EN_ROUTE' | 'ARRIVED';
-
+export type AgentStatus    = 'idle' | 'activating' | 'speaking' | 'listening' | 'processing' | 'ended';
+export type DispatchStatus = 'TRIGGERED' | 'COLLECTING_INFO' | 'DISPATCHING' | 'EN_ROUTE' | 'ARRIVED';
 export type EmotionType    = 'CALM' | 'ANXIOUS' | 'PANIC' | 'CRITICAL_PANIC';
 export type EmergencyType  = 'MEDICAL' | 'FIRE' | 'CRIME' | 'ACCIDENT' | 'DISASTER' | 'OTHER' | null;
 export type ServiceType    = 'AMBULANCE' | 'POLICE' | 'FIRE' | 'DOCTOR' | 'RESCUE' | 'NGO' | null;
@@ -53,22 +47,20 @@ function detectLang(text: string): LangCode {
 
 function detectEmotion(text: string): EmotionType {
   const t = text.toLowerCase();
-  if (/dying|dead|not breathing|unconscious|bleeding badly|can't breathe/.test(t)) return 'CRITICAL_PANIC';
-  if (/help me|please help|scared|afraid|hurry|fast|panic/.test(t))                return 'PANIC';
-  if (/worried|don't know|what do i|not sure/.test(t))                             return 'ANXIOUS';
+  if (/dying|dead|not breathing|unconscious|can't breathe/.test(t)) return 'CRITICAL_PANIC';
+  if (/help me|please help|scared|afraid|hurry|panic/.test(t))      return 'PANIC';
+  if (/worried|don't know|not sure/.test(t))                        return 'ANXIOUS';
   return 'CALM';
 }
 
 function detectType(text: string): EmergencyType {
   const t = text.toLowerCase();
-  if (/medical|heart|chest|breath|bleed|unconscious|pain|hurt|injur|ambulance|doctor|stroke|seizure|faint|attack/.test(t)) return 'MEDICAL';
+  if (/medical|heart|chest|breath|bleed|unconscious|pain|hurt|injur|ambulance|doctor|stroke|seizure|faint/.test(t)) return 'MEDICAL';
   if (/fire|smoke|burn|flame|blaze|explosion/.test(t))   return 'FIRE';
-  if (/shoot|gun|weapon|attack|threat|robbery|assault|knife|crime|stab|murder|thief/.test(t)) return 'CRIME';
+  if (/shoot|gun|weapon|robbery|assault|knife|crime|stab|murder|thief/.test(t)) return 'CRIME';
   if (/accident|crash|collision|car|vehicle|road|hit|fell|fall/.test(t)) return 'ACCIDENT';
-  if (/flood|water|tsunami|earthquake|storm|disaster|cyclone|landslide/.test(t)) return 'DISASTER';
+  if (/flood|water|tsunami|earthquake|storm|disaster|cyclone/.test(t)) return 'DISASTER';
   if (/help|sos|emergency/.test(t)) return 'OTHER';
-  if (/आग|दुर्घटना|खून|बचाओ|मदद|दर्द/.test(text)) return 'MEDICAL';
-  if (/అగ్ని|ప్రమాదం|రక్తం|సహాయం/.test(text)) return 'MEDICAL';
   return null;
 }
 
@@ -90,102 +82,103 @@ function extractLocation(text: string): string | null {
 
 function calcSeverity(type: EmergencyType, text: string) {
   const t = text.toLowerCase();
-  if (/dying|dead|not breathing|unconscious|critical|severe|massive/.test(t)) return 'CRITICAL' as const;
-  if (/bleeding|fire|gun|crash|flood|trapped/.test(t))                        return 'HIGH'     as const;
-  if (/pain|hurt|smoke|threat|accident/.test(t))                              return 'MEDIUM'   as const;
+  if (/dying|dead|not breathing|unconscious|critical|severe/.test(t)) return 'CRITICAL' as const;
+  if (/bleeding|fire|gun|crash|flood|trapped/.test(t))                return 'HIGH'     as const;
+  if (/pain|hurt|smoke|threat|accident/.test(t))                      return 'MEDIUM'   as const;
   return type ? 'MEDIUM' as const : 'LOW' as const;
 }
 
 // ── Scripts ───────────────────────────────────────────────────
 
-const SCRIPTS = {
+const SC = {
   en: {
     activate:    'Emergency detected. Stay calm. I am here to help you.',
     askType:     'What is the emergency? Medical, Fire, Accident, Crime, or Disaster?',
     askLocation: 'Please tell me your location or a nearby landmark.',
     askService:  'Do you need an ambulance, police, fire team, or rescue?',
     askSafe:     'Are you safe right now?',
-    dispatching: (svc: string) => `${svc} is being dispatched to your location now.`,
-    enRoute:     (svc: string, eta: number) => `${svc} is on the way. Estimated arrival: ${Math.ceil(eta / 60)} minutes.`,
-    arrived:     'Help has arrived. Stay visible. You are safe now.',
+    dispatching: (s: string) => `${s} is being dispatched to your location.`,
+    enRoute:     (s: string, m: number) => `${s} is on the way. Estimated arrival: ${m} minutes.`,
+    arrived:     'Help has arrived. You are safe now.',
     calm:        'Stay calm. You are not alone. ',
-    medical:     'Keep the person still. Check if they are breathing. ',
-    fire:        'Move outside immediately. Stay low. ',
+    medical:     'Keep the person still. Check breathing. ',
+    fire:        'Move outside now. Stay low. ',
     crime:       'Stay hidden. Stay quiet. ',
-    accident:    'Do not move. Apply pressure to any wounds. ',
-    disaster:    'Move to higher ground if possible. ',
-    reassure:    'You are not alone. Stay with me. Help is coming.',
-    noInput:     'I did not hear you. Please speak clearly.',
+    accident:    'Do not move. Apply pressure to wounds. ',
+    disaster:    'Move to higher ground. ',
+    reassure:    'Help is on the way. Stay with me.',
   },
   hi: {
-    activate:    'आपातकाल का पता चला। शांत रहें। मैं आपकी मदद के लिए यहाँ हूँ।',
-    askType:     'क्या हुआ है? चिकित्सा, आग, दुर्घटना, अपराध, या आपदा?',
-    askLocation: 'कृपया अपना स्थान या नजदीकी पहचान बताएं।',
-    askService:  'क्या आपको एम्बुलेंस, पुलिस, या बचाव दल चाहिए?',
-    askSafe:     'क्या आप अभी सुरक्षित हैं?',
-    dispatching: (svc: string) => `${svc} आपके स्थान पर भेजी जा रही है।`,
-    enRoute:     (svc: string, eta: number) => `${svc} रास्ते में है। अनुमानित समय: ${Math.ceil(eta / 60)} मिनट।`,
-    arrived:     'मदद पहुँच गई है। आप अब सुरक्षित हैं।',
+    activate:    'आपातकाल का पता चला। शांत रहें। मैं यहाँ हूँ।',
+    askType:     'क्या हुआ? चिकित्सा, आग, दुर्घटना, अपराध, या आपदा?',
+    askLocation: 'अपना स्थान बताएं।',
+    askService:  'एम्बुलेंस, पुलिस, या बचाव दल चाहिए?',
+    askSafe:     'क्या आप सुरक्षित हैं?',
+    dispatching: (s: string) => `${s} भेजी जा रही है।`,
+    enRoute:     (s: string, m: number) => `${s} रास्ते में है। ${m} मिनट में पहुँचेगी।`,
+    arrived:     'मदद आ गई। आप सुरक्षित हैं।',
     calm:        'शांत रहें। आप अकेले नहीं हैं। ',
     medical:     'व्यक्ति को हिलाएं नहीं। सांस जांचें। ',
-    fire:        'तुरंत बाहर निकलें। नीचे झुककर चलें। ',
+    fire:        'बाहर निकलें। नीचे झुकें। ',
     crime:       'छुपे रहें। शांत रहें। ',
     accident:    'हिलें नहीं। घाव पर दबाव डालें। ',
-    disaster:    'ऊंची जगह पर जाएं। ',
-    reassure:    'आप अकेले नहीं हैं। मेरे साथ रहें।',
-    noInput:     'मैंने नहीं सुना। कृपया स्पष्ट बोलें।',
+    disaster:    'ऊंची जगह जाएं। ',
+    reassure:    'मदद आ रही है। मेरे साथ रहें।',
   },
   te: {
-    activate:    'అత్యవసర పరిస్థితి గుర్తించబడింది. శాంతంగా ఉండండి. నేను మీకు సహాయం చేయడానికి ఇక్కడ ఉన్నాను.',
-    askType:     'ఏమి జరిగింది? వైద్య, అగ్ని, ప్రమాదం, నేరం, లేదా విపత్తు?',
-    askLocation: 'దయచేసి మీ స్థానం లేదా సమీప గుర్తు చెప్పండి.',
-    askService:  'మీకు అంబులెన్స్, పోలీసు, లేదా రెస్క్యూ అవసరమా?',
-    askSafe:     'మీరు ఇప్పుడు సురక్షితంగా ఉన్నారా?',
-    dispatching: (svc: string) => `${svc} మీ స్థానానికి పంపబడుతోంది.`,
-    enRoute:     (svc: string, eta: number) => `${svc} దారిలో ఉంది. అంచనా సమయం: ${Math.ceil(eta / 60)} నిమిషాలు.`,
-    arrived:     'సహాయం వచ్చింది. మీరు ఇప్పుడు సురక్షితంగా ఉన్నారు.',
+    activate:    'అత్యవసర పరిస్థితి. శాంతంగా ఉండండి. నేను ఇక్కడ ఉన్నాను.',
+    askType:     'ఏమి జరిగింది? వైద్య, అగ్ని, ప్రమాదం, నేరం, విపత్తు?',
+    askLocation: 'మీ స్థానం చెప్పండి.',
+    askService:  'అంబులెన్స్, పోలీసు, లేదా రెస్క్యూ కావాలా?',
+    askSafe:     'మీరు సురక్షితంగా ఉన్నారా?',
+    dispatching: (s: string) => `${s} పంపబడుతోంది.`,
+    enRoute:     (s: string, m: number) => `${s} దారిలో ఉంది. ${m} నిమిషాలు.`,
+    arrived:     'సహాయం వచ్చింది. మీరు సురక్షితంగా ఉన్నారు.',
     calm:        'శాంతంగా ఉండండి. మీరు ఒంటరిగా లేరు. ',
-    medical:     'వ్యక్తిని కదలించవద్దు. శ్వాస తనిఖీ చేయండి. ',
-    fire:        'వెంటనే బయటకు వెళ్ళండి. వంగి నడవండి. ',
+    medical:     'కదలించవద్దు. శ్వాస తనిఖీ చేయండి. ',
+    fire:        'బయటకు వెళ్ళండి. వంగి నడవండి. ',
     crime:       'దాక్కోండి. నిశ్శబ్దంగా ఉండండి. ',
     accident:    'కదలవద్దు. గాయాలపై ఒత్తిడి వేయండి. ',
     disaster:    'ఎత్తైన ప్రదేశానికి వెళ్ళండి. ',
-    reassure:    'మీరు ఒంటరిగా లేరు. నాతో ఉండండి.',
-    noInput:     'నేను వినలేదు. దయచేసి స్పష్టంగా మాట్లాడండి.',
+    reassure:    'సహాయం వస్తోంది. నాతో ఉండండి.',
   },
 };
 
-// ── TTS with guaranteed callback ──────────────────────────────
-
 const LANG_BCP47: Record<LangCode, string> = { en: 'en-US', hi: 'hi-IN', te: 'te-IN' };
 
-function tts(text: string, lang: LangCode, onEnd: () => void): void {
-  if (!window.speechSynthesis) { setTimeout(onEnd, 100); return; }
+// ── TTS — guaranteed single-fire callback ─────────────────────
 
+function speakText(text: string, lang: LangCode, onDone: () => void): void {
+  if (!window.speechSynthesis) { setTimeout(onDone, 200); return; }
+
+  // Cancel any ongoing speech first
   window.speechSynthesis.cancel();
 
-  // Small delay so cancel() settles
+  // Wait for cancel to settle, then speak
   setTimeout(() => {
     const u    = new SpeechSynthesisUtterance(text);
     u.lang     = LANG_BCP47[lang];
-    u.rate     = 0.90;
+    u.rate     = 0.88;
     u.pitch    = 1.0;
     u.volume   = 1.0;
 
-    // Guaranteed fallback — Chrome sometimes drops onend
-    const estimatedMs = Math.max(1500, text.length * 65);
-    const fallback    = setTimeout(onEnd, estimatedMs);
+    let fired = false;
+    const fire = () => { if (!fired) { fired = true; onDone(); } };
 
-    u.onend = () => { clearTimeout(fallback); onEnd(); };
-    u.onerror = () => { clearTimeout(fallback); onEnd(); };
+    // Fallback: estimate duration + 800ms buffer
+    const fallbackMs = Math.max(2000, text.length * 70 + 800);
+    const timer = setTimeout(fire, fallbackMs);
+
+    u.onend   = () => { clearTimeout(timer); setTimeout(fire, 300); };
+    u.onerror = () => { clearTimeout(timer); setTimeout(fire, 300); };
 
     window.speechSynthesis.speak(u);
-  }, 120);
+  }, 150);
 }
 
 // ── STT ───────────────────────────────────────────────────────
 
-const SpeechRecognitionAPI: any =
+const SpeechRecognitionCtor: any =
   typeof window !== 'undefined'
     ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     : null;
@@ -199,275 +192,237 @@ export function useAIVoiceAgent() {
     currentEmotion: 'CALM', eta: 480, isMuted: false,
   });
 
-  // All mutable state in refs to avoid stale closures
-  const activeRef   = useRef(false);
-  const mutedRef    = useRef(false);
-  const recRef      = useRef<any>(null);
-  const etaRef      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const statusRef   = useRef<AgentStatus>('idle');
+  // All logic lives in refs — zero stale closure risk
+  const alive    = useRef(false);
+  const muted    = useRef(false);
+  const recRef   = useRef<any>(null);
+  const etaTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const convRef = useRef({
+  const conv = useRef({
     step: 0, lang: 'en' as LangCode,
-    type: null as EmergencyType, location: null as string | null,
-    service: null as ServiceType, userStatus: null as string | null,
+    type: null as EmergencyType,
+    location: null as string | null,
+    service: null as ServiceType,
   });
 
-  // ── State setters (use refs to avoid stale reads) ────────
+  // ── Tiny state helpers ───────────────────────────────────
 
-  const setAgentStatus = (s: AgentStatus) => {
-    statusRef.current = s;
-    setState(prev => ({ ...prev, status: s }));
-  };
+  const setStatus   = (s: AgentStatus)    => setState(p => ({ ...p, status: s }));
+  const setDispatch = (d: DispatchStatus) => setState(p => ({ ...p, dispatchStatus: d }));
+  const pushMsg     = (speaker: 'ai' | 'user', text: string, emotion?: EmotionType) =>
+    setState(p => ({ ...p, messages: [...p.messages, { id: uuidv4(), speaker, text, timestamp: new Date().toISOString(), emotion }] }));
+  const patchData   = (patch: Partial<EmergencyData>) =>
+    setState(p => ({ ...p, emergencyData: { ...p.emergencyData, ...patch } }));
 
-  const setDispatch = (d: DispatchStatus) =>
-    setState(prev => ({ ...prev, dispatchStatus: d }));
+  // ── Kill recognition ─────────────────────────────────────
 
-  const addMsg = (speaker: 'ai' | 'user', text: string, emotion?: EmotionType) =>
-    setState(prev => ({
-      ...prev,
-      messages: [...prev.messages, { id: uuidv4(), speaker, text, timestamp: new Date().toISOString(), emotion }],
-    }));
-
-  const patchData = (patch: Partial<EmergencyData>) =>
-    setState(prev => ({ ...prev, emergencyData: { ...prev.emergencyData, ...patch } }));
-
-  // ── Stop recognition safely ──────────────────────────────
-
-  const stopRec = () => {
+  const killRec = () => {
     if (recRef.current) {
-      try { recRef.current.abort(); } catch { /* ignore */ }
+      try { recRef.current.onresult = null; recRef.current.onerror = null; recRef.current.onend = null; recRef.current.abort(); } catch { /* ignore */ }
       recRef.current = null;
     }
   };
 
-  // ── Core: speak then listen ──────────────────────────────
-  // Uses plain functions (not useCallback) so they always read fresh refs
+  // ── SPEAK then call onDone ───────────────────────────────
 
-  function listen(lang: LangCode) {
-    if (!activeRef.current) return;
+  const say = (text: string, onDone: () => void) => {
+    if (!alive.current) return;
+    setStatus('speaking');
+    pushMsg('ai', text);
 
-    stopRec();
-    setAgentStatus('listening');
-
-    if (!SpeechRecognitionAPI) {
-      // No STT support — show manual input fallback
+    if (muted.current) {
+      setTimeout(() => { if (alive.current) onDone(); }, 400);
       return;
     }
 
-    const rec: any = new SpeechRecognitionAPI();
+    speakText(text, conv.current.lang, () => {
+      if (alive.current) onDone();
+    });
+  };
+
+  // ── LISTEN — starts fresh recognition ───────────────────
+
+  const listen = () => {
+    if (!alive.current) return;
+
+    killRec();
+    setStatus('listening');
+
+    if (!SpeechRecognitionCtor) return; // no STT — user must type
+
+    const lang = conv.current.lang;
+    const rec: any = new SpeechRecognitionCtor();
     rec.lang            = LANG_BCP47[lang];
     rec.continuous      = false;
-    rec.interimResults  = true;   // show interim so user sees feedback
+    rec.interimResults  = false;
     rec.maxAlternatives = 1;
 
-    let gotResult = false;
+    let handled = false;
 
     rec.onresult = (e: SpeechRecognitionEvent) => {
-      const result = e.results[e.results.length - 1];
-      if (result.isFinal) {
-        gotResult = true;
-        const transcript = result[0].transcript.trim();
-        if (transcript) {
-          handleUserInput(transcript);
-        } else {
-          // Empty final — re-listen
-          setTimeout(() => { if (activeRef.current) listen(lang); }, 500);
-        }
+      if (handled) return;
+      handled = true;
+      killRec();
+      const text = e.results[0][0].transcript.trim();
+      if (text) {
+        handleInput(text);
+      } else {
+        // Empty result — listen again
+        setTimeout(() => { if (alive.current) listen(); }, 300);
       }
     };
 
     rec.onerror = (e: any) => {
-      console.warn('STT error:', e.error);
-      if (!activeRef.current) return;
+      if (handled) return;
+      handled = true;
+      killRec();
+      if (!alive.current) return;
+
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        // Mic permission denied — show message
-        addMsg('ai', 'Microphone access denied. Please type your response or allow mic access.');
-        setAgentStatus('listening');
+        pushMsg('ai', 'Microphone blocked. Please type your response below.');
+        setStatus('listening');
         return;
       }
-      // Other errors — retry after short delay
-      setTimeout(() => { if (activeRef.current) listen(lang); }, 1200);
+      // network / aborted / no-speech — just re-listen silently
+      setTimeout(() => { if (alive.current) listen(); }, 600);
     };
 
     rec.onend = () => {
-      if (!activeRef.current) return;
-      if (!gotResult) {
-        // Nothing heard — re-listen immediately (no re-ask, just keep listening)
-        setTimeout(() => { if (activeRef.current) listen(lang); }, 400);
-      }
+      if (handled) return;
+      // No result and no error — re-listen
+      setTimeout(() => { if (alive.current) listen(); }, 300);
     };
 
     recRef.current = rec;
     try {
       rec.start();
-    } catch (err) {
-      console.warn('STT start error:', err);
-      setTimeout(() => { if (activeRef.current) listen(lang); }, 800);
+    } catch {
+      setTimeout(() => { if (alive.current) listen(); }, 800);
     }
-  }
+  };
 
-  function say(text: string, lang: LangCode, then?: () => void) {
-    if (!activeRef.current) return;
-    setAgentStatus('speaking');
-    addMsg('ai', text);
+  // ── Handle user input (voice or typed) ──────────────────
 
-    if (mutedRef.current) {
-      setTimeout(() => { if (activeRef.current) then?.(); }, 300);
-      return;
-    }
+  const handleInput = (text: string) => {
+    if (!alive.current) return;
+    setStatus('processing');
 
-    tts(text, lang, () => {
-      if (!activeRef.current) return;
-      setTimeout(() => { if (activeRef.current) then?.(); }, 300);
-    });
-  }
+    const dl = detectLang(text);
+    if (dl !== 'en') { conv.current.lang = dl; patchData({ language: dl }); }
 
-  // ── Conversation steps ───────────────────────────────────
-
-  function askStep() {
-    if (!activeRef.current) return;
-    const lang = convRef.current.lang;
-    const sc   = SCRIPTS[lang];
-    const step = convRef.current.step;
-
-    if      (step === 0) say(sc.askType,     lang, () => listen(lang));
-    else if (step === 1) say(sc.askLocation, lang, () => listen(lang));
-    else if (step === 2) say(sc.askService,  lang, () => listen(lang));
-    else if (step === 3) say(sc.askSafe,     lang, () => listen(lang));
-    else                 say(sc.reassure,    lang, () => listen(lang));
-  }
-
-  function handleUserInput(text: string) {
-    if (!activeRef.current) return;
-    setAgentStatus('processing');
-
-    const detectedLang = detectLang(text);
-    if (detectedLang !== 'en') {
-      convRef.current.lang = detectedLang;
-      patchData({ language: detectedLang });
-    }
-
-    const lang    = convRef.current.lang;
-    const sc      = SCRIPTS[lang];
+    const lang    = conv.current.lang;
+    const sc      = SC[lang];
     const emotion = detectEmotion(text);
-    addMsg('user', text, emotion);
-    setState(prev => ({ ...prev, currentEmotion: emotion }));
+    pushMsg('user', text, emotion);
+    setState(p => ({ ...p, currentEmotion: emotion }));
 
     const type     = detectType(text);
     const location = extractLocation(text);
     const service  = mapService(type);
     const severity = calcSeverity(type, text);
 
-    if (type     && !convRef.current.type)     { convRef.current.type = type;         patchData({ emergencyType: type, serviceNeeded: service, severity }); }
-    if (location && !convRef.current.location) { convRef.current.location = location; patchData({ location }); }
+    if (type     && !conv.current.type)     { conv.current.type = type;         patchData({ emergencyType: type, serviceNeeded: service, severity }); }
+    if (location && !conv.current.location) { conv.current.location = location; patchData({ location }); }
 
     const calm = (emotion === 'PANIC' || emotion === 'CRITICAL_PANIC') ? sc.calm : '';
-    const step = convRef.current.step;
+    const step = conv.current.step;
 
     if (step === 0) {
-      convRef.current.step = 1;
+      conv.current.step = 1;
       const inst = type === 'MEDICAL' ? sc.medical : type === 'FIRE' ? sc.fire
         : type === 'CRIME' ? sc.crime : type === 'ACCIDENT' ? sc.accident
         : type === 'DISASTER' ? sc.disaster : '';
       setDispatch('COLLECTING_INFO');
-      say(calm + inst + sc.askLocation, lang, () => listen(lang));
+      say(calm + inst + sc.askLocation, listen);
     }
     else if (step === 1) {
-      convRef.current.step = 2;
-      say(calm + sc.askService, lang, () => listen(lang));
+      conv.current.step = 2;
+      say(calm + sc.askService, listen);
     }
     else if (step === 2) {
-      convRef.current.step = 3;
-      const svcLabel = text.toLowerCase().includes('ambulance') ? 'Ambulance'
-        : text.toLowerCase().includes('police') ? 'Police'
-        : text.toLowerCase().includes('fire')   ? 'Fire team'
+      conv.current.step = 3;
+      const svcLabel = /ambulance/i.test(text) ? 'Ambulance'
+        : /police/i.test(text) ? 'Police'
+        : /fire/i.test(text)   ? 'Fire team'
         : 'Rescue team';
-      convRef.current.service = service;
+      conv.current.service = service;
       patchData({ serviceNeeded: service });
       setDispatch('DISPATCHING');
-      say(calm + sc.dispatching(svcLabel) + ' ' + sc.askSafe, lang, () => listen(lang));
+      say(calm + sc.dispatching(svcLabel) + ' ' + sc.askSafe, listen);
     }
     else if (step === 3) {
-      convRef.current.step = 4;
-      convRef.current.userStatus = text;
+      conv.current.step = 4;
       patchData({ userStatus: text });
       setDispatch('EN_ROUTE');
 
       // Start ETA countdown
-      const etaStart = 480;
-      setState(prev => ({ ...prev, eta: etaStart }));
-      if (etaRef.current) clearInterval(etaRef.current);
-      etaRef.current = setInterval(() => {
-        setState(prev => {
-          const next = Math.max(0, prev.eta - 1);
-          if (next === 0) { clearInterval(etaRef.current!); setDispatch('ARRIVED'); }
-          return { ...prev, eta: next };
+      setState(p => ({ ...p, eta: 480 }));
+      if (etaTimer.current) clearInterval(etaTimer.current);
+      etaTimer.current = setInterval(() => {
+        setState(p => {
+          const next = Math.max(0, p.eta - 1);
+          if (next === 0) { clearInterval(etaTimer.current!); setDispatch('ARRIVED'); }
+          return { ...p, eta: next };
         });
       }, 1000);
 
-      say(sc.enRoute(convRef.current.service ?? 'Help', etaStart) + ' ' + sc.reassure, lang, () => listen(lang));
+      const mins = Math.ceil(480 / 60);
+      say(sc.enRoute(conv.current.service ?? 'Help', mins) + ' ' + sc.reassure, listen);
     }
     else {
-      // Keep listening for any follow-up
-      say(sc.reassure, lang, () => listen(lang));
+      say(sc.reassure, listen);
     }
-  }
+  };
 
-  // ── Public: start ────────────────────────────────────────
+  // ── Public API ───────────────────────────────────────────
 
-  const startAgent = useCallback((userLang: LangCode = 'en') => {
-    if (activeRef.current) return;
-    activeRef.current = true;
-    mutedRef.current  = false;
-    convRef.current   = { step: 0, lang: userLang, type: null, location: null, service: null, userStatus: null };
+  const startAgent = useCallback((lang: LangCode = 'en') => {
+    if (alive.current) return;
+    alive.current = true;
+    muted.current = false;
+    conv.current  = { step: 0, lang, type: null, location: null, service: null };
 
     setState({
       status: 'activating', dispatchStatus: 'TRIGGERED', messages: [],
-      emergencyData: { emergencyType: null, location: null, serviceNeeded: null, severity: null, userStatus: null, language: userLang },
+      emergencyData: { emergencyType: null, location: null, serviceNeeded: null, severity: null, userStatus: null, language: lang },
       currentEmotion: 'CALM', eta: 480, isMuted: false,
     });
 
-    const sc = SCRIPTS[userLang];
+    // Step 1: greet, then ask type
     setTimeout(() => {
-      if (!activeRef.current) return;
-      say(sc.activate, userLang, () => {
-        setTimeout(() => { if (activeRef.current) askStep(); }, 200);
+      if (!alive.current) return;
+      say(SC[lang].activate, () => {
+        if (alive.current) say(SC[lang].askType, listen);
       });
-    }, 500);
+    }, 600);
   }, []);
-
-  // ── Public: stop ─────────────────────────────────────────
 
   const stopAgent = useCallback(() => {
-    activeRef.current = false;
-    stopRec();
+    alive.current = false;
+    killRec();
     window.speechSynthesis?.cancel();
-    if (etaRef.current) clearInterval(etaRef.current);
-    setState(prev => ({ ...prev, status: 'ended' }));
+    if (etaTimer.current) clearInterval(etaTimer.current);
+    setState(p => ({ ...p, status: 'ended' }));
   }, []);
-
-  // ── Public: toggle mute ──────────────────────────────────
 
   const toggleMute = useCallback(() => {
-    mutedRef.current = !mutedRef.current;
-    setState(prev => ({ ...prev, isMuted: mutedRef.current }));
-    if (mutedRef.current) window.speechSynthesis?.cancel();
+    muted.current = !muted.current;
+    setState(p => ({ ...p, isMuted: muted.current }));
+    if (muted.current) window.speechSynthesis?.cancel();
   }, []);
 
-  // ── Public: manual text input (fallback) ─────────────────
-
+  // submitText — for manual text input fallback
   const submitText = useCallback((text: string) => {
-    if (!activeRef.current || !text.trim()) return;
-    stopRec();
-    handleUserInput(text.trim());
+    if (!alive.current || !text.trim()) return;
+    killRec();
+    handleInput(text.trim());
   }, []);
 
-  // Cleanup
   useEffect(() => () => {
-    activeRef.current = false;
-    stopRec();
+    alive.current = false;
+    killRec();
     window.speechSynthesis?.cancel();
-    if (etaRef.current) clearInterval(etaRef.current);
+    if (etaTimer.current) clearInterval(etaTimer.current);
   }, []);
 
   return { state, startAgent, stopAgent, toggleMute, submitText };
