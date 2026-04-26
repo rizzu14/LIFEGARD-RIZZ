@@ -4,7 +4,7 @@
 // Shows: status · transcript · dispatch · ETA · data panel
 // ============================================================
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Volume2, VolumeX, X, Phone } from 'lucide-react';
 import { useAIVoiceAgent, AgentStatus, DispatchStatus, LangCode } from '../../hooks/useAIVoiceAgent';
@@ -64,9 +64,11 @@ interface AIVoiceAgentOverlayProps {
 }
 
 export function AIVoiceAgentOverlay({ onClose, initialLang = 'en' }: AIVoiceAgentOverlayProps) {
-  const { state, startAgent, stopAgent, toggleMute } = useAIVoiceAgent();
+  const { state, startAgent, stopAgent, toggleMute, submitText } = useAIVoiceAgent();
   const { setActiveTab } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [textInput, setTextInput] = React.useState('');
+  const noSTT = typeof window !== 'undefined' && !((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   // Auto-start on mount
   useEffect(() => {
@@ -311,36 +313,77 @@ export function AIVoiceAgentOverlay({ onClose, initialLang = 'en' }: AIVoiceAgen
       <div style={{
         padding: '12px 20px 20px',
         borderTop: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', gap: 10, flexShrink: 0,
+        display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0,
       }}>
-        <button
-          onClick={handleTrack}
-          style={{
-            flex: 1, padding: '13px',
-            background: 'rgba(34,197,94,0.15)',
-            border: '1px solid rgba(34,197,94,0.3)',
-            borderRadius: 14, color: '#22c55e',
-            fontWeight: 700, fontSize: 13, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}
-        >
-          📍 Track Responder
-        </button>
-        <a
-          href="tel:911"
-          style={{
-            flex: 1, padding: '13px',
-            background: 'rgba(239,68,68,0.12)',
-            border: '1px solid rgba(239,68,68,0.25)',
-            borderRadius: 14, color: '#ef4444',
-            fontWeight: 700, fontSize: 13, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            textDecoration: 'none',
-          }}
-        >
-          <Phone style={{ width: 15, height: 15 }} />
-          Call 911
-        </a>
+
+        {/* Text input fallback — always shown when listening */}
+        {(state.status === 'listening' || noSTT) && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={textInput}
+              onChange={e => setTextInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && textInput.trim()) {
+                  submitText(textInput);
+                  setTextInput('');
+                }
+              }}
+              placeholder={noSTT ? 'Type your response…' : 'Or type here if mic not working…'}
+              style={{
+                flex: 1, padding: '10px 14px',
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 12, color: '#f1f5f9',
+                fontSize: 13, outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+            <button
+              onClick={() => { if (textInput.trim()) { submitText(textInput); setTextInput(''); } }}
+              style={{
+                padding: '10px 16px', borderRadius: 12,
+                background: 'rgba(59,130,246,0.2)',
+                border: '1px solid rgba(59,130,246,0.3)',
+                color: '#60a5fa', fontWeight: 700, fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Send
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleTrack}
+            style={{
+              flex: 1, padding: '13px',
+              background: 'rgba(34,197,94,0.15)',
+              border: '1px solid rgba(34,197,94,0.3)',
+              borderRadius: 14, color: '#22c55e',
+              fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            📍 Track Responder
+          </button>
+          <a
+            href="tel:911"
+            style={{
+              flex: 1, padding: '13px',
+              background: 'rgba(239,68,68,0.12)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 14, color: '#ef4444',
+              fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              textDecoration: 'none',
+            }}
+          >
+            <Phone style={{ width: 15, height: 15 }} />
+            Call 911
+          </a>
+        </div>
       </div>
     </motion.div>
   );
