@@ -9,6 +9,7 @@ import { useSocket } from '../../hooks/useSocket';
 import { LoadingScreen } from '../ui/LoadingScreen';
 import { CallOverlay } from '../call/CallOverlay';
 import { useEmergencyCall } from '../../hooks/useEmergencyCall';
+import { LiveStatusPanel } from '../emergency/LiveStatusPanel';
 
 const HomeScreen   = React.lazy(() => import('../../screens/HomeScreen'));
 const TrackScreen  = React.lazy(() => import('../../screens/TrackScreen'));
@@ -186,6 +187,9 @@ export function AppShell() {
             </Suspense>
           </motion.div>
         </AnimatePresence>
+
+        {/* Floating status pill — only on non-home screens, never blocks UI */}
+        {activeTab !== 'home' && <LiveStatusPanel variant="pill" />}
       </div>
 
       {/* Bottom nav: always at the bottom, never overlaps content */}
