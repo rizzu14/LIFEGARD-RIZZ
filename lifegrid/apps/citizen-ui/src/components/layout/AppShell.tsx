@@ -10,6 +10,7 @@ import { LoadingScreen } from '../ui/LoadingScreen';
 import { CallOverlay } from '../call/CallOverlay';
 import { useEmergencyCall } from '../../hooks/useEmergencyCall';
 import { LiveStatusPanel } from '../emergency/LiveStatusPanel';
+import { FloatingCallButton } from '../ui/FloatingCallButton';
 
 const HomeScreen   = React.lazy(() => import('../../screens/HomeScreen'));
 const TrackScreen  = React.lazy(() => import('../../screens/TrackScreen'));
@@ -199,6 +200,9 @@ export function AppShell() {
       <AnimatePresence>
         <CallOverlay />
       </AnimatePresence>
+
+      {/* Floating AI call button — always visible */}
+      <FloatingCallButton />
     </div>
   );
 }
