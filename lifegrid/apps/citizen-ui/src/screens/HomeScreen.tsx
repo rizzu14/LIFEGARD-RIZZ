@@ -208,6 +208,7 @@ export default function HomeScreen() {
 
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="status-bar">
+
         <div className="flex items-center gap-2 flex-1">
           <div className="w-5 h-5 border border-gray-200 flex items-center justify-center flex-shrink-0">
             <span className="text-[7px] font-mono font-bold text-gray-800">LG</span>
@@ -227,6 +228,9 @@ export default function HomeScreen() {
           <LanguageSelector value={language} onChange={setLanguage} compact />
         </div>
       </div>
+
+      {/* ── Slim status strip — sits below header, never blocks body ── */}
+      <LiveStatusPanel voiceTranscript={voiceTranscript} />
 
       {/* ── Body ───────────────────────────────────────────── */}
       <div
@@ -375,21 +379,6 @@ export default function HomeScreen() {
             {isActive  && 'Help dispatched · See tracking'}
           </motion.p>
         </div>
-
-        {/* ── Live Status Panel (post-SOS only, NO map) ─── */}
-        {/* Map lives exclusively on the Track screen        */}
-        <AnimatePresence>
-          {!isIdle && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              style={{ width: '100%', marginBottom: 12 }}
-            >
-              <LiveStatusPanel voiceTranscript={voiceTranscript} />
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* ── Quick actions (idle only — clean when active) ─ */}
         <AnimatePresence>

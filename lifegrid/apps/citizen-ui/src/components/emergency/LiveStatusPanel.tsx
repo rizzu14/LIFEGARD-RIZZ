@@ -1,304 +1,218 @@
 // ============================================================
-// LIFEGRID – Live Status Panel
-// Dynamic real-time status display below the SOS button.
-// Shows: location · emergency type · connection · responder · ETA
+// LIFEGRID – Live Status Strip  (non-blocking)
 //
-// States:
-//   idle       → hidden (no panel shown)
-//   holding    → "Preparing emergency system..."
-//   confirming → "Sending SOS..."
-//   submitting → "Connecting to control center..."
-//   active     → Full live panel with all data
+// A slim top strip that shows connection/dispatch status.
+// Never covers buttons. Auto-updates. No user interaction needed.
+// Tap to expand for a compact detail pill.
 // ============================================================
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Wifi, WifiOff, Radio, Clock, AlertTriangle, CheckCircle, Loader } from 'lucide-react';
-import { useAppStore, SOSState } from '../../store/appStore';
+import { useAppStore } from '../../store/appStore';
 import { classifyEmergency, ClassificationResult } from '../../hooks/useEmergencyClassifier';
 
-// ── Connection state config ───────────────────────────────────
+// ── Status phases ─────────────────────────────────────────────
 
-const CONNECTION_STATES: Record<string, { label: string; color: string; pulse: boolean }> = {
-  idle:        { label: 'Standby',                  color: '#9ca3af', pulse: false },
-  holding:     { label: 'Preparing...',             color: '#f59e0b', pulse: true  },
-  confirming:  { label: 'Sending SOS...',           color: '#ef4444', pulse: true  },
-  submitting:  { label: 'Connecting...',            color: '#3b82f6', pulse: true  },
-  active:      { label: 'Help Dispatched',          color: '#22c55e', pulse: false },
-  calling:     { label: 'Calling Control Center',  color: '#3b82f6', pulse: true  },
-  connected:   { label: 'Connected to Operator',   color: '#22c55e', pulse: false },
-  dispatched:  { label: 'Responders Dispatched',   color: '#22c55e', pulse: false },
-  resolved:    { label: 'Incident Resolved',       color: '#6b7280', pulse: false },
+type Phase = 'connecting' | 'processing' | 'dispatched' | 'active' | 'arriving';
+
+function getPhase(sosState: string, eta: number, callState?: string): Phase {
+  if (sosState === 'holding' || sosState === 'confirming' || sosState === 'submitting') return 'connecting';
+  if (sosState === 'active') {
+    if (callState === 'connected') return 'active';
+    if (eta <= 60) return 'arriving';
+    return 'dispatched';
+  }
+  return 'connecting';
+}
+
+const PHASE_CONFIG: Record<Phase, { label: string; sub: string; dot: string; pulse: boolean }> = {
+  connecting:  { label: 'Connecting…',        sub: 'Reaching LIFEGRID',         dot: '#f59e0b', pulse: true  },
+  processing:  { label: 'Processing…',        sub: 'Analyzing situation',        dot: '#3b82f6', pulse: true  },
+  dispatched:  { label: 'Help dispatched',    sub: 'Responder on the way',       dot: '#22c55e', pulse: false },
+  active:      { label: 'Operator connected', sub: 'Live assistance active',     dot: '#22c55e', pulse: true  },
+  arriving:    { label: 'Arriving soon',      sub: 'Stay calm, help is close',   dot: '#22c55e', pulse: true  },
 };
 
-// ── ETA formatter ─────────────────────────────────────────────
-
-function formatETA(seconds: number): string {
-  if (seconds <= 0) return 'Arriving now';
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+function formatETA(s: number) {
+  if (s <= 0) return 'Now';
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
-// ── Signal dot ────────────────────────────────────────────────
-
-function StatusDot({ color, pulse }: { color: string; pulse: boolean }) {
-  return (
-    <div style={{ position: 'relative', width: 8, height: 8, flexShrink: 0 }}>
-      {pulse && (
-        <div style={{
-          position: 'absolute', inset: -4, borderRadius: '50%',
-          background: color, opacity: 0.3,
-          animation: 'ping 1.5s ease-out infinite',
-        }} />
-      )}
-      <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-    </div>
-  );
-}
-
-// ── Individual status row ─────────────────────────────────────
-
-function StatusRow({
-  icon, label, value, valueColor, loading: isLoading,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  valueColor?: string;
-  loading?: boolean;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f3f4f6' }}>
-      <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f9fafb', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {icon}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 9, fontFamily: 'monospace', color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 1 }}>
-          {label}
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: valueColor ?? '#111827', truncate: true, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {isLoading ? (
-            <Loader style={{ width: 12, height: 12, color: '#9ca3af', animation: 'spin 1s linear infinite' }} />
-          ) : value}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────
 
 interface LiveStatusPanelProps {
   voiceTranscript?: string;
 }
 
 export function LiveStatusPanel({ voiceTranscript = '' }: LiveStatusPanelProps) {
-  const {
-    sosState, activeIncidentId, activeReferenceCode,
-    userLocation, responderPositions, callSession,
-  } = useAppStore();
+  const { sosState, userLocation, responderPositions, callSession, activeReferenceCode } = useAppStore();
 
-  const [eta, setEta] = useState<number>(480);  // 8 min default
+  const [eta, setEta] = useState(480);
+  const [expanded, setExpanded] = useState(false);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
-  const [connectionLabel, setConnectionLabel] = useState('Standby');
   const etaRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ── Show panel only when SOS is active ───────────────────
 
   const shouldShow = sosState !== 'idle' && sosState !== 'resolved';
 
-  // ── AI classification from voice/text ────────────────────
-
+  // AI classification
   useEffect(() => {
-    if (voiceTranscript && voiceTranscript.length > 3) {
-      const result = classifyEmergency(voiceTranscript);
-      if (result.type !== 'UNKNOWN') {
-        setClassification(result);
-      }
+    if (voiceTranscript.length > 3) {
+      const r = classifyEmergency(voiceTranscript);
+      if (r.type !== 'UNKNOWN') setClassification(r);
     }
   }, [voiceTranscript]);
 
-  // ── Connection state label ────────────────────────────────
-
+  // ETA countdown
   useEffect(() => {
-    const callState = callSession?.state;
-    if (callState === 'connected')   setConnectionLabel('Connected to Operator');
-    else if (callState === 'ringing') setConnectionLabel('Calling Control Center...');
-    else if (sosState === 'active')   setConnectionLabel('Help Dispatched');
-    else if (sosState === 'submitting') setConnectionLabel('Connecting...');
-    else if (sosState === 'confirming') setConnectionLabel('Sending SOS...');
-    else if (sosState === 'holding')    setConnectionLabel('Preparing...');
-    else setConnectionLabel('Standby');
-  }, [sosState, callSession?.state]);
-
-  // ── ETA countdown ─────────────────────────────────────────
-
-  useEffect(() => {
+    if (etaRef.current) clearInterval(etaRef.current);
     if (sosState === 'active') {
-      // Set initial ETA from responder data if available
-      const firstResponder = responderPositions[0];
-      if (firstResponder?.etaSeconds) {
-        setEta(firstResponder.etaSeconds);
-      }
-
-      etaRef.current = setInterval(() => {
-        setEta(prev => Math.max(0, prev - 1));
-      }, 1000);
+      const first = responderPositions[0];
+      if (first?.etaSeconds) setEta(first.etaSeconds);
+      etaRef.current = setInterval(() => setEta(p => Math.max(0, p - 1)), 1000);
     }
     return () => { if (etaRef.current) clearInterval(etaRef.current); };
   }, [sosState, responderPositions]);
 
-  // Update ETA when responder positions change
   useEffect(() => {
     const first = responderPositions[0];
-    if (first?.etaSeconds && first.etaSeconds > 0) {
-      setEta(first.etaSeconds);
-    }
+    if (first?.etaSeconds && first.etaSeconds > 0) setEta(first.etaSeconds);
   }, [responderPositions]);
 
-  // ── Derived values ────────────────────────────────────────
+  const phase = getPhase(sosState, eta, callSession?.state);
+  const cfg   = PHASE_CONFIG[phase];
 
   const locationText = userLocation
-    ? `${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`
-    : 'Acquiring GPS...';
-
-  const responder = responderPositions[0];
-  const responderText = responder
-    ? `${responder.type.replace('_', ' ')} Unit`
-    : sosState === 'active' ? 'Assigning unit...' : '—';
-
-  const connState = CONNECTION_STATES[
-    callSession?.state === 'connected' ? 'connected' :
-    callSession?.state === 'ringing'   ? 'calling'   :
-    sosState
-  ] ?? CONNECTION_STATES.idle;
-
-  const etaColor = eta <= 60 ? '#22c55e' : eta <= 180 ? '#f59e0b' : '#374151';
+    ? `${userLocation.lat.toFixed(3)}, ${userLocation.lng.toFixed(3)}`
+    : 'Locating…';
 
   return (
     <AnimatePresence>
       {shouldShow && (
         <motion.div
-          initial={{ opacity: 0, y: 16, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 16, scale: 0.97 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          style={{
-            width: '100%',
-            background: '#ffffff',
-            border: '2px solid #e5e7eb',
-            borderRadius: 16,
-            padding: '14px 16px',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          }}
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+          style={{ width: '100%' }}
         >
-          {/* Panel header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StatusDot color={connState.color} pulse={connState.pulse} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: connState.color, letterSpacing: '0.05em' }}>
-                {connectionLabel}
-              </span>
+          {/* ── Slim strip ─────────────────────────────────── */}
+          <button
+            onClick={() => setExpanded(e => !e)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '7px 16px',
+              background: '#f9fafb',
+              borderTop: '1px solid #e5e7eb',
+              borderBottom: expanded ? 'none' : '1px solid #e5e7eb',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+            aria-label="Status strip — tap to expand"
+          >
+            {/* Dot */}
+            <div style={{ position: 'relative', width: 8, height: 8, flexShrink: 0 }}>
+              {cfg.pulse && (
+                <div style={{
+                  position: 'absolute', inset: -3, borderRadius: '50%',
+                  background: cfg.dot, opacity: 0.3,
+                  animation: 'ping 1.5s ease-out infinite',
+                  pointerEvents: 'none',
+                }} />
+              )}
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.dot }} />
             </div>
-            {activeReferenceCode && (
-              <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#9ca3af', letterSpacing: '0.1em' }}>
-                {activeReferenceCode}
+
+            {/* Label */}
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#111827', letterSpacing: '0.03em', flex: 1 }}>
+              {cfg.label}
+            </span>
+
+            {/* ETA chip (active only) */}
+            {sosState === 'active' && (
+              <span style={{
+                fontSize: 10, fontFamily: 'monospace', fontWeight: 700,
+                color: eta <= 60 ? '#16a34a' : '#374151',
+                background: eta <= 60 ? '#dcfce7' : '#f3f4f6',
+                padding: '2px 7px', borderRadius: 99,
+              }}>
+                {formatETA(eta)}
               </span>
             )}
-          </div>
 
-          {/* Status rows */}
-          <div>
-            {/* Location */}
-            <StatusRow
-              icon={<MapPin style={{ width: 13, height: 13, color: '#6b7280' }} />}
-              label="Your Location"
-              value={locationText}
-              loading={!userLocation}
-            />
-
-            {/* Emergency type */}
-            <StatusRow
-              icon={<span style={{ fontSize: 13 }}>{classification?.icon ?? '⚠️'}</span>}
-              label="Emergency Type"
-              value={classification ? `${classification.label}` : sosState === 'active' ? 'Classifying...' : 'Detecting...'}
-              valueColor={classification?.color}
-              loading={!classification && sosState === 'active'}
-            />
-
-            {/* Connection */}
-            <StatusRow
-              icon={connState.pulse
-                ? <Wifi style={{ width: 13, height: 13, color: connState.color }} />
-                : <CheckCircle style={{ width: 13, height: 13, color: connState.color }} />
-              }
-              label="Connection"
-              value={connState.label}
-              valueColor={connState.color}
-            />
-
-            {/* Responder */}
-            <StatusRow
-              icon={<Radio style={{ width: 13, height: 13, color: '#6b7280' }} />}
-              label="Responder Unit"
-              value={responderText}
-              loading={sosState === 'active' && !responder}
-            />
-
-            {/* ETA */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f9fafb', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Clock style={{ width: 13, height: 13, color: '#6b7280' }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 9, fontFamily: 'monospace', color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 1 }}>
-                  Estimated Arrival
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', color: etaColor, letterSpacing: '0.05em' }}>
-                    {sosState === 'active' ? formatETA(eta) : '—'}
-                  </span>
-                  {sosState === 'active' && eta > 0 && (
-                    <div style={{ flex: 1, height: 4, background: '#f3f4f6', borderRadius: 2, overflow: 'hidden' }}>
-                      <motion.div
-                        style={{ height: '100%', background: etaColor, borderRadius: 2 }}
-                        animate={{ width: `${Math.max(5, (eta / 480) * 100)}%` }}
-                        transition={{ duration: 1, ease: 'linear' }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* AI confidence indicator */}
-          {classification && classification.confidence > 0.5 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              style={{
-                marginTop: 12, padding: '8px 12px',
-                background: `${classification.color}10`,
-                border: `1px solid ${classification.color}30`,
-                borderRadius: 10,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}
+            {/* Expand chevron */}
+            <svg
+              width="12" height="12" viewBox="0 0 12 12" fill="none"
+              style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}
             >
-              <span style={{ fontSize: 16 }}>{classification.icon}</span>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: classification.color }}>
-                  AI: {classification.label} detected
+              <path d="M2 4l4 4 4-4" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {/* ── Expanded detail pill ────────────────────────── */}
+          <AnimatePresence>
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                style={{ overflow: 'hidden', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}
+              >
+                <div style={{ padding: '10px 16px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+                  {/* Sub-message */}
+                  <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>{cfg.sub}</p>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                    {/* Location */}
+                    <DetailChip label="📍" value={locationText} />
+
+                    {/* Emergency type */}
+                    {classification && (
+                      <DetailChip label={classification.icon} value={classification.label} />
+                    )}
+
+                    {/* Responder */}
+                    {responderPositions[0] && (
+                      <DetailChip
+                        label="🚑"
+                        value={responderPositions[0].type.replace('_', ' ')}
+                      />
+                    )}
+
+                    {/* Ref code */}
+                    {activeReferenceCode && (
+                      <DetailChip label="🔖" value={activeReferenceCode} mono />
+                    )}
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: '#6b7280' }}>
-                  {(classification.confidence * 100).toFixed(0)}% confidence · Specialist units alerted
-                </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// ── Small detail chip ─────────────────────────────────────────
+
+function DetailChip({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 4,
+      padding: '3px 8px', borderRadius: 99,
+      background: '#ffffff', border: '1px solid #e5e7eb',
+      fontSize: 10, color: '#374151',
+      fontFamily: mono ? 'monospace' : 'inherit',
+    }}>
+      <span>{label}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
+    </div>
   );
 }
