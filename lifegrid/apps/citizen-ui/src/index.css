@@ -266,6 +266,8 @@ html, body, #root {
   border-radius: 50%;
   border: 1px solid rgba(229, 57, 53, 0.3);
   animation: sos-ring-pulse 2s ease-out infinite;
+  pointer-events: none;  /* never intercept clicks */
+  z-index: 0;
 }
 
 .sos-ring:nth-child(2) { inset: -24px; animation-delay: 0.4s; }

@@ -304,18 +304,19 @@ export default function HomeScreen() {
           </AnimatePresence>
 
           {/* SOS ring + button */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 240, height: 240 }}>
+            {/* Rings rendered BEHIND button via z-index, pointer-events disabled so they never block clicks */}
             {(sosState === 'idle' || sosState === 'holding') && (
               <>
-                <div className="sos-ring" />
-                <div className="sos-ring" />
-                <div className="sos-ring" />
+                <div className="sos-ring" style={{ pointerEvents: 'none' }} />
+                <div className="sos-ring" style={{ pointerEvents: 'none' }} />
+                <div className="sos-ring" style={{ pointerEvents: 'none' }} />
               </>
             )}
 
             {sosState === 'holding' && (
               <svg
-                style={{ position: 'absolute', transform: 'rotate(-90deg)' }}
+                style={{ position: 'absolute', transform: 'rotate(-90deg)', pointerEvents: 'none', zIndex: 1 }}
                 width="200" height="200"
               >
                 <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="3" />
@@ -331,10 +332,14 @@ export default function HomeScreen() {
 
             <motion.button
               className={`sos-button ${isActive ? 'triggered' : ''}`}
-              onPointerDown={sosState === 'idle' ? startHold : undefined}
-              onPointerUp={sosState === 'holding' ? cancelHold : undefined}
-              onPointerLeave={sosState === 'holding' ? cancelHold : undefined}
-              onPointerCancel={sosState === 'holding' ? cancelHold : undefined}
+              style={{ position: 'relative', zIndex: 2, touchAction: 'none' }}
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                if (sosState === 'idle') startHold();
+              }}
+              onPointerUp={() => { if (sosState === 'holding') cancelHold(); }}
+              onPointerLeave={() => { if (sosState === 'holding') cancelHold(); }}
+              onPointerCancel={() => { if (sosState === 'holding') cancelHold(); }}
               animate={sosState === 'holding' ? { scale: 1.04 } : { scale: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               aria-label="SOS Emergency Button — hold for 2 seconds to activate"
