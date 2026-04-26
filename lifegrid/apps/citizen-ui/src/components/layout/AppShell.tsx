@@ -11,6 +11,7 @@ import { CallOverlay } from '../call/CallOverlay';
 import { useEmergencyCall } from '../../hooks/useEmergencyCall';
 import { LiveStatusPanel } from '../emergency/LiveStatusPanel';
 import { FloatingCallButton } from '../ui/FloatingCallButton';
+import { AIVoiceAgentOverlay } from '../emergency/AIVoiceAgentOverlay';
 
 const HomeScreen   = React.lazy(() => import('../../screens/HomeScreen'));
 const TrackScreen  = React.lazy(() => import('../../screens/TrackScreen'));
@@ -34,6 +35,23 @@ export function AppShell() {
   const { isOnline } = useOffline();
   const { location } = useGeolocation();
   const { socket } = useSocket();
+
+  // ── AI Voice Agent ────────────────────────────────────────
+  const [showAIAgent, setShowAIAgent] = React.useState(false);
+  const sosStateRef = React.useRef<string>('idle');
+
+  // Auto-launch AI agent when SOS becomes active
+  React.useEffect(() => {
+    return useAppStore.subscribe(
+      (state) => state.sosState,
+      (sosState) => {
+        if (sosState === 'active' && sosStateRef.current !== 'active') {
+          setShowAIAgent(true);
+        }
+        sosStateRef.current = sosState;
+      },
+    );
+  }, []);
 
   // ── Emergency call engine ─────────────────────────────────
   const { startCall } = useEmergencyCall();
@@ -203,6 +221,16 @@ export function AppShell() {
 
       {/* Floating AI call button — always visible */}
       <FloatingCallButton />
+
+      {/* AI Voice Agent — auto-launches on SOS */}
+      <AnimatePresence>
+        {showAIAgent && (
+          <AIVoiceAgentOverlay
+            onClose={() => setShowAIAgent(false)}
+            initialLang={useAppStore.getState().language as any}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
