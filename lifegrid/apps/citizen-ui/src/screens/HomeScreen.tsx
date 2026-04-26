@@ -22,7 +22,6 @@ import { useOffline } from '../hooks/useOffline';
 import { api } from '../lib/api';
 import { LanguageSelector } from '../components/ui/LanguageSelector';
 import { LiveStatusPanel } from '../components/emergency/LiveStatusPanel';
-import { EmergencyMap } from '../components/emergency/EmergencyMap';
 import { classifyEmergency } from '../hooks/useEmergencyClassifier';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -200,10 +199,12 @@ export default function HomeScreen() {
 
   // ── Render ────────────────────────────────────────────────
 
-  const isActive = sosState === 'active';
+  const isActive  = sosState === 'active';
+  const isIdle    = sosState === 'idle';
+  const isWorking = !isIdle && !isActive;  // holding / confirming / submitting
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff", overflow: "hidden" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff', overflow: 'hidden' }}>
 
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="status-bar">
@@ -214,11 +215,10 @@ export default function HomeScreen() {
           <div>
             <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-gray-900">LIFEGRID</div>
             <div className="text-[8px] font-mono text-gray-400">
-              {isOnline ? 'CONNECTED' : 'OFFLINE MODE'}
+              {isOnline ? 'System Ready' : 'Offline Mode'}
             </div>
           </div>
         </div>
-
         <div className="flex items-center gap-3">
           {isOnline
             ? <Wifi className="w-4 h-4 text-green-600" />
@@ -229,32 +229,70 @@ export default function HomeScreen() {
       </div>
 
       {/* ── Body ───────────────────────────────────────────── */}
-      <div className="screen-body flex flex-col items-center justify-between px-6 py-8">
+      <div
+        className="screen-body"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '24px 24px 16px',
+          gap: 0,
+        }}
+      >
 
-        {/* Top status */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full"
-        >
-          {isActive ? (
-            <ActiveIncidentBanner />
-          ) : (
-            <SystemStatusBar isOnline={isOnline} />
+        {/* ── Active incident banner (replaces status bar) ── */}
+        <AnimatePresence>
+          {isActive && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              style={{ width: '100%', marginBottom: 16 }}
+            >
+              <ActiveIncidentBanner />
+            </motion.div>
           )}
-        </motion.div>
+        </AnimatePresence>
 
-        {/* ── SOS Button ─────────────────────────────────── */}
-        <div className="flex flex-col items-center gap-8">
+        {/* ── System status (idle only) ─────────────────── */}
+        <AnimatePresence>
+          {isIdle && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ width: '100%', marginBottom: 16 }}
+            >
+              <SystemStatusBar isOnline={isOnline} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          {/* Confirming countdown overlay */}
+        {/* ── SOS Button — always centered ─────────────── */}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 24,
+            width: '100%',
+          }}
+        >
+          {/* Countdown overlay */}
           <AnimatePresence>
             {sosState === 'confirming' && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="absolute inset-0 flex flex-col items-center justify-center bg-white/95 z-50"
+                style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.97)', zIndex: 50,
+                }}
               >
                 <CountdownOverlay
                   countdown={countdown}
@@ -266,7 +304,7 @@ export default function HomeScreen() {
           </AnimatePresence>
 
           {/* SOS ring + button */}
-          <div className="relative flex items-center justify-center">
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {(sosState === 'idle' || sosState === 'holding') && (
               <>
                 <div className="sos-ring" />
@@ -275,21 +313,15 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* Hold progress ring */}
             {sosState === 'holding' && (
               <svg
-                className="absolute"
-                width="200"
-                height="200"
-                style={{ transform: 'rotate(-90deg)' }}
+                style={{ position: 'absolute', transform: 'rotate(-90deg)' }}
+                width="200" height="200"
               >
-                <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="3" />
+                <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="3" />
                 <circle
                   cx="100" cy="100" r="88"
-                  fill="none"
-                  stroke="#e53935"
-                  strokeWidth="3"
-                  strokeLinecap="round"
+                  fill="none" stroke="#e53935" strokeWidth="3" strokeLinecap="round"
                   strokeDasharray={`${2 * Math.PI * 88}`}
                   strokeDashoffset={`${2 * Math.PI * 88 * (1 - holdPct / 100)}`}
                   style={{ transition: 'stroke-dashoffset 16ms linear' }}
@@ -297,7 +329,6 @@ export default function HomeScreen() {
               </svg>
             )}
 
-            {/* Main SOS button */}
             <motion.button
               className={`sos-button ${isActive ? 'triggered' : ''}`}
               onPointerDown={sosState === 'idle' ? startHold : undefined}
@@ -314,7 +345,7 @@ export default function HomeScreen() {
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="w-8 h-8 border-2 border-gray-800 border-t-transparent rounded-full"
+                  style={{ width: 32, height: 32, border: '2px solid #111827', borderTopColor: 'transparent', borderRadius: '50%' }}
                 />
               ) : (
                 <>
@@ -332,101 +363,92 @@ export default function HomeScreen() {
             key={sosState}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-[11px] text-gray-400 text-center font-mono tracking-widest uppercase"
+            style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.15em', textTransform: 'uppercase', margin: 0 }}
           >
-            {sosState === 'idle'    && 'Press and hold to activate'}
-            {sosState === 'holding' && 'Keep holding...'}
-            {sosState === 'active'  && 'Help dispatched · See tracking'}
+            {isIdle    && 'Press and hold to activate'}
+            {isWorking && 'Keep holding...'}
+            {isActive  && 'Help dispatched · See tracking'}
           </motion.p>
         </div>
 
-        {/* ── Live Status Panel + Map ────────────────────── */}
-        {/* Appears dynamically when SOS is triggered        */}
-        <div className="w-full space-y-3">
-          {/* Embedded emergency map — shows user + responders */}
-          <EmergencyMap height={180} />
+        {/* ── Live Status Panel (post-SOS only, NO map) ─── */}
+        {/* Map lives exclusively on the Track screen        */}
+        <AnimatePresence>
+          {!isIdle && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              style={{ width: '100%', marginBottom: 12 }}
+            >
+              <LiveStatusPanel voiceTranscript={voiceTranscript} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          {/* Live status panel — all data updates in real time */}
-          <LiveStatusPanel voiceTranscript={voiceTranscript} />
-        </div>
-
-        {/* ── Quick actions ─────────────────────────────── */}
-        <div className="w-full space-y-3">
-
-          {/* Voice command — always shown, graceful fallback if unsupported */}
-          <button
-            onClick={() => {
-              if (!voiceSupported) {
-                alert('Voice input is not supported in this browser. Please use Chrome or Edge.');
-                return;
-              }
-              toggleListening();
-            }}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 16,
-              padding: '16px',
-              border: `2px solid ${isListening ? '#111827' : '#e5e7eb'}`,
-              background: isListening ? '#f9fafb' : '#ffffff',
-              borderRadius: 12,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-            aria-label={isListening ? 'Stop voice command' : 'Start voice command'}
-          >
-            <div style={{ width: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {isListening ? (
-                <VoiceWaveform />
-              ) : (
-                <Mic style={{ width: 18, height: 18, color: voiceSupported ? '#6b7280' : '#d1d5db' }} />
-              )}
-            </div>
-            <div style={{ flex: 1, textAlign: 'left' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
-                {isListening ? 'Listening... tap to stop' : 'Voice Command'}
-              </div>
-              {voiceTranscript ? (
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-                  "{voiceTranscript}"
+        {/* ── Quick actions (idle only — clean when active) ─ */}
+        <AnimatePresence>
+          {isIdle && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}
+            >
+              {/* Voice command */}
+              <button
+                onClick={() => {
+                  if (!voiceSupported) {
+                    alert('Voice input requires Chrome or Edge browser.');
+                    return;
+                  }
+                  toggleListening();
+                }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 16,
+                  padding: '14px 16px',
+                  border: `2px solid ${isListening ? '#111827' : '#e5e7eb'}`,
+                  background: isListening ? '#f9fafb' : '#ffffff',
+                  borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                aria-label={isListening ? 'Stop voice command' : 'Start voice command'}
+              >
+                <div style={{ width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {isListening ? <VoiceWaveform /> : <Mic style={{ width: 18, height: 18, color: voiceSupported ? '#6b7280' : '#d1d5db' }} />}
                 </div>
-              ) : (
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                  {voiceSupported ? 'Say "SOS" or "Emergency"' : 'Not supported in this browser'}
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                    {isListening ? 'Listening… tap to stop' : 'Voice Command'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                    {voiceTranscript ? `"${voiceTranscript}"` : voiceSupported ? 'Say "SOS" or "Emergency"' : 'Chrome / Edge only'}
+                  </div>
                 </div>
-              )}
-            </div>
-            {isListening && (
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite', flexShrink: 0 }} />
-            )}
-          </button>
+                {isListening && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite', flexShrink: 0 }} />}
+              </button>
 
-          {/* Call emergency services */}
-          <a
-            href="tel:911"
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 16,
-              padding: '16px',
-              border: '2px solid #e5e7eb',
-              background: '#ffffff',
-              borderRadius: 12,
-              textDecoration: 'none',
-              transition: 'border-color 0.15s',
-            }}
-            aria-label="Call emergency services"
-          >
-            <Phone style={{ width: 18, height: 18, color: '#6b7280', flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Call Emergency Services</div>
-              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Direct line · Always available</div>
-            </div>
-            <ChevronRight style={{ width: 16, height: 16, color: '#d1d5db', flexShrink: 0 }} />
-          </a>
-        </div>
+              {/* Call 911 */}
+              <a
+                href="tel:911"
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 16,
+                  padding: '14px 16px',
+                  border: '2px solid #e5e7eb', background: '#ffffff',
+                  borderRadius: 12, textDecoration: 'none', transition: 'border-color 0.15s',
+                }}
+                aria-label="Call emergency services"
+              >
+                <Phone style={{ width: 18, height: 18, color: '#6b7280', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Call Emergency Services</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Direct line · Always available</div>
+                </div>
+                <ChevronRight style={{ width: 16, height: 16, color: '#d1d5db', flexShrink: 0 }} />
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </div>
   );
