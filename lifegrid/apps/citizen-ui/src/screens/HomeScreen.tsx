@@ -1,11 +1,11 @@
 // ============================================================
-// LIFEGRID – Home Screen  v3.0
-// Calm · Trustworthy · Emergency-first
+// LIFEGRID – Home Screen  v4.0  Premium UI
+// Apple / Stripe quality · Glassmorphism · Soft gradients
 // ============================================================
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Wifi, WifiOff, Mic, ChevronRight, Shield, Clock } from 'lucide-react';
+import { Phone, Wifi, WifiOff, Mic, ChevronRight, Shield, Clock, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { useHaptic } from '../hooks/useHaptic';
@@ -20,7 +20,6 @@ import { v4 as uuidv4 } from 'uuid';
 const HOLD_DURATION_MS = 2000;
 const CONFIRM_DURATION = 3;
 
-// ── Rotating support messages ─────────────────────────────────
 const SUPPORT_MESSAGES = [
   'You are safe. Help is one tap away.',
   'Stay calm. We are ready to assist you.',
@@ -42,14 +41,13 @@ export default function HomeScreen() {
 
   const holdTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdStartRef  = useRef<number>(0);
-  const [holdPct, setHoldPct]       = useState(0);
-  const [countdown, setCountdown]   = useState(CONFIRM_DURATION);
+  const [holdPct, setHoldPct]     = useState(0);
+  const [countdown, setCountdown] = useState(CONFIRM_DURATION);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [msgIdx, setMsgIdx] = useState(0);
 
-  // Rotate support message every 5s
   useEffect(() => {
     const t = setInterval(() => setMsgIdx(i => (i + 1) % SUPPORT_MESSAGES.length), 5000);
     return () => clearInterval(t);
@@ -67,18 +65,13 @@ export default function HomeScreen() {
     },
   });
 
-  // ── Hold ──────────────────────────────────────────────────
-
   const startHold = useCallback(() => {
     if (sosState !== 'idle') return;
-    haptic('tap');
-    setSosState('holding');
-    holdStartRef.current = Date.now();
+    haptic('tap'); setSosState('holding'); holdStartRef.current = Date.now();
     holdTimerRef.current = setInterval(() => {
       const elapsed = Date.now() - holdStartRef.current;
       const pct = Math.min((elapsed / HOLD_DURATION_MS) * 100, 100);
-      setHoldPct(pct);
-      setSosHoldProgress(pct);
+      setHoldPct(pct); setSosHoldProgress(pct);
       if (pct >= 100) { clearInterval(holdTimerRef.current!); haptic('success'); beginConfirm(); }
     }, 16);
   }, [sosState, haptic, setSosState, setSosHoldProgress]);
@@ -104,14 +97,9 @@ export default function HomeScreen() {
     haptic('tap'); setSosState('idle'); setCountdown(CONFIRM_DURATION); setHoldPct(0);
   }, [haptic, setSosState]);
 
-  // ── Submit ────────────────────────────────────────────────
-
   const submitSOS = useCallback(async () => {
     setSosState('submitting'); setIsSubmitting(true); haptic('sos');
-    const payload = {
-      rawInput: voiceTranscript || 'SOS – Emergency button activated',
-      language, source: 'PANIC_BUTTON', location: userLocation ?? undefined,
-    };
+    const payload = { rawInput: voiceTranscript || 'SOS – Emergency button activated', language, source: 'PANIC_BUTTON', location: userLocation ?? undefined };
     const localRef = `SOS-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(Math.random()*999999).toString().padStart(6,'0')}`;
     const localId  = uuidv4();
     try {
@@ -147,167 +135,155 @@ export default function HomeScreen() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden',
-      background: 'linear-gradient(160deg, #f8faff 0%, #f0f4f8 50%, #f5f8ff 100%)',
+      background: 'linear-gradient(145deg, #f0f4ff 0%, #f8fafc 40%, #eef2ff 100%)',
+      position: 'relative',
     }}>
+
+      {/* ── Ambient background orbs ─────────────────────── */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
+        <div style={{ position: 'absolute', top: '15%', left: '50%', transform: 'translateX(-50%)', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)', }} />
+        <div style={{ position: 'absolute', bottom: '20%', right: '-10%', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,197,94,0.05) 0%, transparent 70%)', }} />
+        <div style={{ position: 'absolute', top: '60%', left: '-5%', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(239,68,68,0.04) 0%, transparent 70%)', }} />
+      </div>
 
       {/* ── Header ─────────────────────────────────────────── */}
       <div style={{
-        height: 56, paddingTop: 'var(--safe-top)',
+        height: 60, paddingTop: 'var(--safe-top)',
         display: 'flex', alignItems: 'center',
         paddingLeft: 20, paddingRight: 20, flexShrink: 0,
-        background: 'rgba(255,255,255,0.80)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        background: 'rgba(255,255,255,0.72)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        borderBottom: '1px solid rgba(99,102,241,0.08)',
+        boxShadow: '0 1px 0 rgba(0,0,0,0.04)',
+        position: 'relative', zIndex: 10,
       }}>
+        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-          {/* Logo mark */}
           <div style={{
-            width: 30, height: 30, borderRadius: 8,
-            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            width: 32, height: 32, borderRadius: 10,
+            background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(49,46,129,0.35)',
           }}>
-            <span style={{ fontSize: 9, fontWeight: 900, color: '#fff', letterSpacing: '0.05em' }}>LG</span>
+            <span style={{ fontSize: 10, fontWeight: 900, color: '#fff', letterSpacing: '0.05em' }}>LG</span>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', color: '#0f172a', textTransform: 'uppercase' }}>LIFEGRID</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: isOnline ? '#22c55e' : '#f59e0b', flexShrink: 0 }} />
-              <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
-                {isOnline ? 'SYSTEM READY' : 'OFFLINE MODE'}
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', color: '#1e1b4b', textTransform: 'uppercase' }}>LIFEGRID</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: isOnline ? '#22c55e' : '#f59e0b', flexShrink: 0, boxShadow: isOnline ? '0 0 4px #22c55e' : 'none' }} />
+              <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                {isOnline ? 'System Ready' : 'Offline Mode'}
               </span>
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 4 }}>
-          {isOnline
-            ? <Wifi style={{ width: 15, height: 15, color: '#22c55e' }} />
-            : <WifiOff style={{ width: 15, height: 15, color: '#f59e0b' }} />
-          }
 
-          {/* Kisan-Kavach profile pill */}
+        {/* Right controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Network icon */}
+          <div style={{
+            width: 30, height: 30, borderRadius: 8,
+            background: 'rgba(255,255,255,0.8)',
+            border: '1px solid rgba(0,0,0,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}>
+            {isOnline
+              ? <Wifi style={{ width: 14, height: 14, color: '#22c55e' }} />
+              : <WifiOff style={{ width: 14, height: 14, color: '#f59e0b' }} />
+            }
+          </div>
+
+          {/* Kisan-Kavach pill */}
           <button
             onClick={() => navigate('/kisan')}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              height: 38, padding: '0 14px 0 6px',
+              display: 'flex', alignItems: 'center', gap: 7,
+              height: 36, padding: '0 12px 0 5px',
               borderRadius: 99,
-              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-              border: '1.5px solid #86efac',
-              boxShadow: '0 2px 8px rgba(21,128,61,0.12)',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'box-shadow 0.15s, transform 0.15s',
+              background: 'linear-gradient(135deg, rgba(240,253,244,0.95) 0%, rgba(220,252,231,0.95) 100%)',
+              border: '1.5px solid rgba(134,239,172,0.7)',
+              boxShadow: '0 2px 10px rgba(21,128,61,0.12), inset 0 1px 0 rgba(255,255,255,0.6)',
+              cursor: 'pointer', whiteSpace: 'nowrap',
+              backdropFilter: 'blur(8px)',
+              transition: 'all 0.2s ease',
             }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(21,128,61,0.22)'; (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.03)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 8px rgba(21,128,61,0.12)'; (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
-            aria-label="Open Kisan-Kavach Farmer Mode"
+            onMouseEnter={e => { const b = e.currentTarget; b.style.transform = 'translateY(-1px)'; b.style.boxShadow = '0 4px 16px rgba(21,128,61,0.22), inset 0 1px 0 rgba(255,255,255,0.6)'; }}
+            onMouseLeave={e => { const b = e.currentTarget; b.style.transform = 'translateY(0)'; b.style.boxShadow = '0 2px 10px rgba(21,128,61,0.12), inset 0 1px 0 rgba(255,255,255,0.6)'; }}
           >
-            {/* Avatar circle */}
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #16a34a, #15803d)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, fontSize: 14,
-            }}>
-              🌾
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg, #16a34a, #15803d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, boxShadow: '0 1px 4px rgba(21,128,61,0.3)' }}>🌾</div>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#15803d' }}>Kisan-Kavach</span>
+              <span style={{ fontSize: 8, color: '#6b7280', fontFamily: 'monospace' }}>Farmer Mode</span>
             </div>
-
-            {/* Label */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', letterSpacing: '0.02em' }}>
-                Kisan-Kavach
-              </span>
-              <span style={{ fontSize: 9, color: '#6b7280', fontFamily: 'monospace', letterSpacing: '0.05em' }}>
-                Farmer Mode
-              </span>
-            </div>
-
-            {/* Dropdown chevron */}
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ marginLeft: 2, flexShrink: 0 }}>
-              <path d="M2 3.5l3 3 3-3" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" style={{ marginLeft: 1 }}>
+              <path d="M1.5 3l3 3 3-3" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
+
+          {/* Language */}
           <LanguageSelector value={language} onChange={setLanguage} compact />
         </div>
       </div>
 
       {/* ── Status strip ───────────────────────────────────── */}
-      <LiveStatusPanel voiceTranscript={voiceTranscript} />
+      <div style={{ position: 'relative', zIndex: 9 }}>
+        <LiveStatusPanel voiceTranscript={voiceTranscript} />
+      </div>
 
       {/* ── Body ───────────────────────────────────────────── */}
       <div style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
         display: 'flex', flexDirection: 'column',
-        alignItems: 'center', padding: '20px 20px 16px',
-        gap: 0,
+        alignItems: 'center', padding: '20px 20px 20px',
+        position: 'relative', zIndex: 1,
       }}>
 
         {/* Active incident banner */}
         <AnimatePresence>
           {isActive && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              style={{ width: '100%', marginBottom: 16 }}
-            >
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} style={{ width: '100%', marginBottom: 16 }}>
               <ActiveIncidentBanner />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Trust indicators (idle only) */}
+        {/* Status bar */}
         <AnimatePresence>
           {isIdle && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ width: '100%', marginBottom: 12 }}
-            >
-              <TrustBar isOnline={isOnline} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', marginBottom: 16 }}>
+              <StatusBar isOnline={isOnline} />
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* ── SOS zone ─────────────────────────────────────── */}
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          gap: 20, width: '100%', position: 'relative',
-        }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, width: '100%', position: 'relative' }}>
 
           {/* Countdown overlay */}
           <AnimatePresence>
             {sosState === 'confirming' && (
-              <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                style={{
-                  position: 'absolute', inset: 0, zIndex: 50,
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(248,250,255,0.97)',
-                  backdropFilter: 'blur(8px)',
-                }}
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{ position: 'absolute', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(240,244,255,0.97)', backdropFilter: 'blur(12px)' }}>
                 <CountdownOverlay countdown={countdown} total={CONFIRM_DURATION} onCancel={cancelConfirm} />
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Soft glow background behind SOS */}
+          {/* Radial glow behind SOS */}
           <div style={{
-            position: 'absolute',
-            width: 280, height: 280,
-            borderRadius: '50%',
+            position: 'absolute', width: 320, height: 320, borderRadius: '50%',
             background: isActive
-              ? 'radial-gradient(circle, rgba(34,197,94,0.10) 0%, transparent 70%)'
-              : 'radial-gradient(circle, rgba(239,68,68,0.07) 0%, transparent 70%)',
-            pointerEvents: 'none',
-            transition: 'background 0.6s ease',
+              ? 'radial-gradient(circle, rgba(34,197,94,0.14) 0%, transparent 65%)'
+              : 'radial-gradient(circle, rgba(239,68,68,0.10) 0%, rgba(99,102,241,0.05) 50%, transparent 70%)',
+            pointerEvents: 'none', transition: 'background 0.8s ease',
           }} />
 
           {/* SOS button container */}
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 240, height: 240 }}>
 
-            {/* Calm pulse rings */}
+            {/* Pulse rings */}
             {(isIdle || sosState === 'holding') && (
               <>
                 <div className="sos-ring-calm" style={{ pointerEvents: 'none' }} />
@@ -317,13 +293,11 @@ export default function HomeScreen() {
 
             {/* Hold progress arc */}
             {sosState === 'holding' && (
-              <svg style={{ position: 'absolute', transform: 'rotate(-90deg)', pointerEvents: 'none', zIndex: 1 }} width="200" height="200">
-                <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(239,68,68,0.08)" strokeWidth="4" />
-                <circle
-                  cx="100" cy="100" r="88" fill="none"
-                  stroke="url(#holdGrad)" strokeWidth="4" strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 88}`}
-                  strokeDashoffset={`${2 * Math.PI * 88 * (1 - holdPct / 100)}`}
+              <svg style={{ position: 'absolute', transform: 'rotate(-90deg)', pointerEvents: 'none', zIndex: 1 }} width="210" height="210">
+                <circle cx="105" cy="105" r="92" fill="none" stroke="rgba(239,68,68,0.08)" strokeWidth="5" />
+                <circle cx="105" cy="105" r="92" fill="none" stroke="url(#holdGrad)" strokeWidth="5" strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 92}`}
+                  strokeDashoffset={`${2 * Math.PI * 92 * (1 - holdPct / 100)}`}
                   style={{ transition: 'stroke-dashoffset 16ms linear' }}
                 />
                 <defs>
@@ -335,66 +309,52 @@ export default function HomeScreen() {
               </svg>
             )}
 
-            {/* THE SOS BUTTON */}
+            {/* SOS BUTTON */}
             <motion.button
-              className={`sos-btn-v3 ${isActive ? 'sos-btn-v3--active' : ''} ${sosState === 'holding' ? 'sos-btn-v3--holding' : ''}`}
+              className={`sos-btn-v4 ${isActive ? 'sos-btn-v4--active' : ''} ${sosState === 'holding' ? 'sos-btn-v4--holding' : ''}`}
               style={{ position: 'relative', zIndex: 2, touchAction: 'none' }}
               onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); if (sosState === 'idle') startHold(); }}
               onPointerUp={() => { if (sosState === 'holding') cancelHold(); }}
               onPointerLeave={() => { if (sosState === 'holding') cancelHold(); }}
               onPointerCancel={() => { if (sosState === 'holding') cancelHold(); }}
-              animate={sosState === 'holding' ? { scale: 1.05 } : { scale: 1 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              aria-label="SOS Emergency Button — hold for 2 seconds to activate"
+              animate={sosState === 'holding' ? { scale: 1.06 } : { scale: 1 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              aria-label="SOS Emergency Button — hold for 2 seconds"
               aria-pressed={isActive}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  style={{ width: 28, height: 28, border: '2.5px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%' }}
-                />
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  style={{ width: 30, height: 30, border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} />
               ) : (
                 <>
-                  <span className="sos-btn-v3__label">SOS</span>
-                  <span className="sos-btn-v3__sub">
-                    {sosState === 'holding' ? 'HOLD...' : isActive ? 'ACTIVE' : 'HOLD 2s'}
-                  </span>
+                  <span className="sos-btn-v4__label">SOS</span>
+                  <span className="sos-btn-v4__sub">{sosState === 'holding' ? 'HOLD...' : isActive ? 'ACTIVE' : 'HOLD 2s'}</span>
                 </>
               )}
             </motion.button>
           </div>
 
-          {/* Instruction / state text */}
-          <motion.p
-            key={sosState}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.15em', textTransform: 'uppercase', margin: 0 }}
-          >
+          {/* Instruction text */}
+          <motion.p key={sosState} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+            style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.18em', textTransform: 'uppercase', margin: 0 }}>
             {isIdle    && 'Press and hold to activate'}
             {isWorking && 'Keep holding…'}
             {isActive  && 'Help dispatched · See tracking'}
           </motion.p>
 
-          {/* Support message (idle only) */}
+          {/* Support message pill */}
           <AnimatePresence mode="wait">
             {isIdle && (
-              <motion.div
-                key={msgIdx}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.5 }}
+              <motion.div key={msgIdx} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.45 }}
                 style={{
-                  padding: '10px 20px',
-                  background: 'rgba(255,255,255,0.7)',
-                  border: '1px solid rgba(148,163,184,0.2)',
+                  padding: '9px 22px',
+                  background: 'rgba(255,255,255,0.65)',
+                  border: '1px solid rgba(99,102,241,0.12)',
                   borderRadius: 99,
-                  backdropFilter: 'blur(8px)',
-                }}
-              >
+                  backdropFilter: 'blur(12px)',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                }}>
                 <p style={{ fontSize: 12, color: '#475569', textAlign: 'center', margin: 0, fontWeight: 500 }}>
                   {SUPPORT_MESSAGES[msgIdx]}
                 </p>
@@ -403,40 +363,32 @@ export default function HomeScreen() {
           </AnimatePresence>
         </div>
 
-        {/* ── Action cards (idle only) ──────────────────────── */}
+        {/* ── Action cards ──────────────────────────────────── */}
         <AnimatePresence>
           {isIdle && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}
-            >
-              {/* Voice command card */}
-              <ActionCard
-                icon={
-                  isListening
-                    ? <VoiceWaveform />
-                    : <Mic style={{ width: 18, height: 18, color: voiceSupported ? '#3b82f6' : '#cbd5e1' }} />
-                }
-                iconBg={isListening ? '#eff6ff' : '#f8faff'}
-                iconBorder={isListening ? '#bfdbfe' : '#e2e8f0'}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+
+              {/* Voice command */}
+              <GlassCard
+                icon={isListening ? <VoiceWaveform /> : <Mic style={{ width: 18, height: 18, color: voiceSupported ? '#6366f1' : '#cbd5e1' }} />}
+                iconBg={isListening ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)' : 'linear-gradient(135deg, #f8faff, #eef2ff)'}
+                iconBorder={isListening ? '#a5b4fc' : '#c7d2fe'}
+                iconShadow={isListening ? '0 2px 8px rgba(99,102,241,0.2)' : '0 1px 4px rgba(99,102,241,0.08)'}
                 title={isListening ? 'Listening… tap to stop' : 'Voice Command'}
                 subtitle={voiceTranscript ? `"${voiceTranscript}"` : voiceSupported ? 'Say "SOS" or "Emergency"' : 'Chrome / Edge only'}
                 active={isListening}
                 badge={isListening ? <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite', flexShrink: 0 }} /> : undefined}
-                onClick={() => {
-                  if (!voiceSupported) { alert('Voice input requires Chrome or Edge browser.'); return; }
-                  toggleListening();
-                }}
+                onClick={() => { if (!voiceSupported) { alert('Voice input requires Chrome or Edge.'); return; } toggleListening(); }}
               />
 
               {/* Call emergency */}
-              <a href="tel:7780284992" style={{ textDecoration: 'none' }} aria-label="Call emergency services">
-                <ActionCard
-                  icon={<Phone style={{ width: 18, height: 18, color: '#22c55e' }} />}
-                  iconBg="#f0fdf4"
-                  iconBorder="#bbf7d0"
+              <a href="tel:7780284992" style={{ textDecoration: 'none' }}>
+                <GlassCard
+                  icon={<Phone style={{ width: 18, height: 18, color: '#16a34a' }} />}
+                  iconBg="linear-gradient(135deg, #f0fdf4, #dcfce7)"
+                  iconBorder="#86efac"
+                  iconShadow="0 2px 8px rgba(34,197,94,0.15)"
                   title="Call Emergency Services"
                   subtitle="7780284992 · Always available"
                   chevron
@@ -445,33 +397,38 @@ export default function HomeScreen() {
             </motion.div>
           )}
         </AnimatePresence>
-
       </div>
     </div>
   );
 }
 
-// ── Trust bar ─────────────────────────────────────────────────
+// ── Status bar ────────────────────────────────────────────────
 
-function TrustBar({ isOnline }: { isOnline: boolean }) {
+function StatusBar({ isOnline }: { isOnline: boolean }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '8px 14px',
-      background: 'rgba(255,255,255,0.7)',
-      border: '1px solid rgba(148,163,184,0.15)',
-      borderRadius: 12,
-      backdropFilter: 'blur(8px)',
+      padding: '9px 16px',
+      background: isOnline
+        ? 'linear-gradient(135deg, rgba(240,253,244,0.9), rgba(220,252,231,0.9))'
+        : 'linear-gradient(135deg, rgba(255,251,235,0.9), rgba(254,243,199,0.9))',
+      border: `1px solid ${isOnline ? 'rgba(134,239,172,0.5)' : 'rgba(252,211,77,0.5)'}`,
+      borderRadius: 14,
+      backdropFilter: 'blur(12px)',
+      boxShadow: isOnline ? '0 2px 12px rgba(34,197,94,0.08)' : '0 2px 12px rgba(245,158,11,0.08)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Shield style={{ width: 12, height: 12, color: isOnline ? '#22c55e' : '#f59e0b' }} />
-        <span style={{ fontSize: 10, fontWeight: 600, color: isOnline ? '#15803d' : '#92400e', letterSpacing: '0.05em' }}>
-          {isOnline ? 'Connected to LIFEGRID' : 'Offline — local mode'}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ position: 'relative', width: 8, height: 8 }}>
+          <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', background: isOnline ? '#22c55e' : '#f59e0b', opacity: 0.25, animation: 'ping 2s ease-out infinite' }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isOnline ? '#22c55e' : '#f59e0b' }} />
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 600, color: isOnline ? '#15803d' : '#92400e' }}>
+          {isOnline ? 'Connected to LIFEGRID' : 'Offline — local mode active'}
         </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
         <Clock style={{ width: 10, height: 10, color: '#94a3b8' }} />
-        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>Avg response &lt; 5 min</span>
+        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>Avg &lt; 5 min</span>
       </div>
     </div>
   );
@@ -487,17 +444,21 @@ function ActiveIncidentBanner() {
       onClick={() => setActiveTab('track')}
       style={{
         width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 16px',
-        background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
-        border: '1px solid #86efac',
-        borderRadius: 14,
-        boxShadow: '0 2px 12px rgba(34,197,94,0.12)',
+        padding: '13px 18px',
+        background: 'linear-gradient(135deg, rgba(240,253,244,0.95), rgba(220,252,231,0.95))',
+        border: '1.5px solid rgba(134,239,172,0.7)',
+        borderRadius: 16,
+        boxShadow: '0 4px 20px rgba(34,197,94,0.14)',
         cursor: 'pointer',
+        backdropFilter: 'blur(12px)',
       }}
     >
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 1.5s infinite', flexShrink: 0 }} />
+      <div style={{ position: 'relative', width: 10, height: 10, flexShrink: 0 }}>
+        <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', background: '#22c55e', opacity: 0.25, animation: 'ping 1.5s ease-out infinite' }} />
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e' }} />
+      </div>
       <div style={{ flex: 1, textAlign: 'left' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Help Dispatched</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#15803d', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Help Dispatched</div>
         <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>{activeReferenceCode}</div>
       </div>
       <ChevronRight style={{ width: 16, height: 16, color: '#22c55e' }} />
@@ -505,40 +466,50 @@ function ActiveIncidentBanner() {
   );
 }
 
-// ── Action card ───────────────────────────────────────────────
+// ── Glass card ────────────────────────────────────────────────
 
-function ActionCard({
-  icon, iconBg, iconBorder, title, subtitle, active, badge, chevron, onClick,
+function GlassCard({
+  icon, iconBg, iconBorder, iconShadow, title, subtitle, active, badge, chevron, onClick,
 }: {
-  icon: React.ReactNode; iconBg: string; iconBorder: string;
+  icon: React.ReactNode; iconBg: string; iconBorder: string; iconShadow: string;
   title: string; subtitle: string;
   active?: boolean; badge?: React.ReactNode; chevron?: boolean;
   onClick?: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <div
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         width: '100%', display: 'flex', alignItems: 'center', gap: 14,
         padding: '14px 16px',
-        background: active ? 'rgba(239,246,255,0.9)' : 'rgba(255,255,255,0.85)',
-        border: `1.5px solid ${active ? '#bfdbfe' : 'rgba(148,163,184,0.2)'}`,
-        borderRadius: 16,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+        background: active
+          ? 'rgba(238,242,255,0.92)'
+          : hovered ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.80)',
+        border: `1.5px solid ${active ? 'rgba(165,180,252,0.6)' : hovered ? 'rgba(99,102,241,0.15)' : 'rgba(148,163,184,0.15)'}`,
+        borderRadius: 18,
+        boxShadow: hovered
+          ? '0 8px 28px rgba(0,0,0,0.08), 0 2px 8px rgba(99,102,241,0.06)'
+          : '0 2px 12px rgba(0,0,0,0.04)',
         cursor: onClick ? 'pointer' : 'default',
-        backdropFilter: 'blur(8px)',
-        transition: 'all 0.15s ease',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
+        transition: 'all 0.2s ease',
       }}
     >
       <div style={{
-        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-        background: iconBg, border: `1px solid ${iconBorder}`,
+        width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+        background: iconBg, border: `1.5px solid ${iconBorder}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: iconShadow,
       }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}>{title}</div>
         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
       </div>
       {badge}
@@ -550,44 +521,32 @@ function ActionCard({
 // ── Countdown overlay ─────────────────────────────────────────
 
 function CountdownOverlay({ countdown, total, onCancel }: { countdown: number; total: number; onCancel: () => void }) {
-  const radius = 60;
-  const circ   = 2 * Math.PI * radius;
+  const radius = 64; const circ = 2 * Math.PI * radius;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, padding: '0 32px' }}>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="160" height="160">
-          <circle cx="80" cy="80" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="5" />
-          <circle
-            cx="80" cy="80" r={radius} fill="none"
-            stroke="#ef4444" strokeWidth="5" strokeLinecap="round"
-            strokeDasharray={circ}
-            strokeDashoffset={circ - (countdown / total) * circ}
-            style={{ transform: 'rotate(-90deg)', transformOrigin: '80px 80px', transition: 'stroke-dashoffset 1s linear' }}
-          />
+        <svg width="168" height="168">
+          <circle cx="84" cy="84" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="6" />
+          <circle cx="84" cy="84" r={radius} fill="none" stroke="#ef4444" strokeWidth="6" strokeLinecap="round"
+            strokeDasharray={circ} strokeDashoffset={circ - (countdown / total) * circ}
+            style={{ transform: 'rotate(-90deg)', transformOrigin: '84px 84px', transition: 'stroke-dashoffset 1s linear' }} />
         </svg>
         <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <span style={{ fontSize: 48, fontWeight: 800, fontFamily: 'monospace', color: '#0f172a', lineHeight: 1 }}>{countdown}</span>
+          <span style={{ fontSize: 52, fontWeight: 800, fontFamily: 'monospace', color: '#0f172a', lineHeight: 1 }}>{countdown}</span>
           <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#94a3b8', letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: 4 }}>seconds</span>
         </div>
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>Sending SOS</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>Sending SOS</div>
         <div style={{ fontSize: 13, color: '#64748b' }}>Emergency services will be notified</div>
       </div>
-      <button
-        onClick={onCancel}
-        style={{
-          width: '100%', padding: '15px',
-          background: 'rgba(255,255,255,0.9)',
-          border: '1.5px solid #e2e8f0',
-          borderRadius: 14, fontSize: 13, fontWeight: 700,
-          letterSpacing: '0.1em', textTransform: 'uppercase',
-          color: '#475569', cursor: 'pointer',
-          backdropFilter: 'blur(8px)',
-        }}
-      >
-        Cancel
-      </button>
+      <button onClick={onCancel} style={{
+        width: '100%', padding: '15px',
+        background: 'rgba(255,255,255,0.9)', border: '1.5px solid #e2e8f0',
+        borderRadius: 14, fontSize: 13, fontWeight: 700,
+        letterSpacing: '0.1em', textTransform: 'uppercase',
+        color: '#475569', cursor: 'pointer', backdropFilter: 'blur(8px)',
+      }}>Cancel</button>
     </div>
   );
 }
@@ -598,16 +557,12 @@ function VoiceWaveform() {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 18 }}>
       {[0.3, 0.7, 1.0, 0.6, 0.4, 0.8, 0.5].map((h, i) => (
-        <div
-          key={i}
-          style={{
-            width: 3, borderRadius: 2, background: '#3b82f6',
-            height: `${h * 100}%`,
-            animation: `voice-wave ${0.6 + i * 0.08}s ease-in-out infinite alternate`,
-            animationDelay: `${i * 0.1}s`,
-            transformOrigin: 'bottom',
-          }}
-        />
+        <div key={i} style={{
+          width: 3, borderRadius: 2, background: '#6366f1',
+          height: `${h * 100}%`,
+          animation: `voice-wave ${0.6 + i * 0.08}s ease-in-out infinite alternate`,
+          animationDelay: `${i * 0.1}s`, transformOrigin: 'bottom',
+        }} />
       ))}
     </div>
   );
