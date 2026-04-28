@@ -553,7 +553,7 @@ export default function TrackScreen() {
             Live Guidance
           </button>
           <a
-            href="tel:911"
+            href="tel:7780284992"
             style={{
               flex: 1, padding: '13px', borderRadius: 14,
               background: '#fff', color: '#374151',
@@ -564,7 +564,7 @@ export default function TrackScreen() {
             }}
           >
             <Phone style={{ width: 16, height: 16 }} />
-            Call 911
+            Call Emergency
           </a>
         </div>
 

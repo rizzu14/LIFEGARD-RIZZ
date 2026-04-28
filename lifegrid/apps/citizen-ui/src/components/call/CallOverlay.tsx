@@ -214,7 +214,7 @@ export function CallOverlay() {
 
           {/* Fallback: call 911 if failed */}
           {isFailed && (
-            <a href="tel:911" style={{
+            <a href="tel:7780284992" style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               marginTop: 10, padding: '13px',
               background: '#111827', color: '#fff', borderRadius: 12,

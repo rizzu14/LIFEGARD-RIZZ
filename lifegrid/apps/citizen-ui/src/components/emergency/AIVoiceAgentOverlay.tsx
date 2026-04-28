@@ -369,7 +369,7 @@ export function AIVoiceAgentOverlay({ onClose, initialLang = 'en' }: AIVoiceAgen
             📍 Track Responder
           </button>
           <a
-            href="tel:911"
+            href="tel:7780284992"
             style={{
               flex: 1, padding: '13px',
               background: 'rgba(239,68,68,0.12)',
@@ -381,7 +381,7 @@ export function AIVoiceAgentOverlay({ onClose, initialLang = 'en' }: AIVoiceAgen
             }}
           >
             <Phone style={{ width: 15, height: 15 }} />
-            Call 911
+            Call Emergency
           </a>
         </div>
       </div>

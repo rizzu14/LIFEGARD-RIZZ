@@ -120,7 +120,7 @@ export default function LandingPage() {
           className="grid grid-cols-3 gap-4 w-full max-w-sm mb-16"
         >
           {[
-            { icon: Phone, label: 'Call', action: () => window.location.href = 'tel:911' },
+            { icon: Phone, label: 'Call', action: () => window.location.href = 'tel:7780284992' },
             { icon: MapPin, label: 'Locate', action: () => navigate('/emergency?mode=location') },
             { icon: Shield, label: 'Track', action: () => navigate('/dashboard') },
           ].map(({ icon: Icon, label, action }) => (

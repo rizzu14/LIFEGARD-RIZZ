@@ -385,14 +385,14 @@ export default function HomeScreen() {
                 }}
               />
 
-              {/* Call 911 card */}
-              <a href="tel:911" style={{ textDecoration: 'none' }} aria-label="Call emergency services">
+              {/* Call emergency */}
+              <a href="tel:7780284992" style={{ textDecoration: 'none' }} aria-label="Call emergency services">
                 <ActionCard
                   icon={<Phone style={{ width: 18, height: 18, color: '#22c55e' }} />}
                   iconBg="#f0fdf4"
                   iconBorder="#bbf7d0"
                   title="Call Emergency Services"
-                  subtitle="Direct line · Always available"
+                  subtitle="7780284992 · Always available"
                   chevron
                 />
               </a>

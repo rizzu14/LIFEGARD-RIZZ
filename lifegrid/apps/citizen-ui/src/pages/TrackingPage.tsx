@@ -236,10 +236,10 @@ export default function TrackingPage() {
             <div className="text-[10px] text-[#555]">Call emergency services directly</div>
           </div>
           <a
-            href="tel:911"
+            href="tel:7780284992"
             className="flex items-center gap-2 px-4 py-2 border border-white text-xs font-bold tracking-widest uppercase hover:bg-white hover:text-black transition-colors"
           >
-            <Phone className="w-3 h-3" /> Call 911
+            <Phone className="w-3 h-3" /> Call Emergency
           </a>
         </div>
       </div>
