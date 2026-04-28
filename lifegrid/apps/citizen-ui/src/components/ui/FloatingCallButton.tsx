@@ -5,16 +5,21 @@
 
 import React, { useState } from 'react';
 import { Phone, X, Copy, Check } from 'lucide-react';
+import { useAppStore } from '../../store/appStore';
 
-const TWILIO_NUMBER     = '+19785103930';
-const TWILIO_DISPLAY    = '+1 (978) 510-3930';
+const TWILIO_NUMBER  = '+19785103930';
+const TWILIO_DISPLAY = '+1 (978) 510-3930';
 
 export function FloatingCallButton() {
-  const [expanded, setExpanded]   = useState(false);
-  const [copied, setCopied]       = useState(false);
-  const [tooltip, setTooltip]     = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied]     = useState(false);
+  const [tooltip, setTooltip]   = useState(false);
 
+  const { isCallOverlayVisible } = useAppStore();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+  // Move up when call overlay is showing so it doesn't overlap
+  const bottomOffset = isCallOverlayVisible ? 220 : 84;
 
   const handleCall = () => {
     window.location.href = `tel:${TWILIO_NUMBER}`;
@@ -74,9 +79,9 @@ export function FloatingCallButton() {
       {/* ── Floating container ────────────────────────────── */}
       <div style={{
         position: 'fixed',
-        bottom: 84,          // above bottom nav
+        bottom: bottomOffset,
         right: 16,
-        zIndex: 999,
+        zIndex: 390,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',

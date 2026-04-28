@@ -169,12 +169,13 @@ export function CallOverlay() {
         bottom: 72,   // Above bottom nav
         left: 12,
         right: 12,
-        zIndex: 300,
+        zIndex: 400,
         background: '#ffffff',
         borderRadius: 20,
         boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
         border: `2px solid ${statusColor}40`,
         overflow: 'hidden',
+        pointerEvents: 'auto',
       }}
     >
       {/* ── Compact header (always visible) ──────────────── */}
@@ -260,78 +261,83 @@ export function CallOverlay() {
               )}
 
               {/* Call controls */}
-              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 14, position: 'relative', zIndex: 10 }}>
 
                 {/* Mute */}
                 <button
-                  onClick={toggleMute}
+                  onClick={(e) => { e.stopPropagation(); toggleMute(); }}
                   style={{
-                    flex: 1, height: 48, borderRadius: 14,
+                    flex: 1, height: 52, borderRadius: 14,
                     border: `2px solid ${isMuted ? '#ef4444' : '#e5e7eb'}`,
                     background: isMuted ? '#fef2f2' : '#f9fafb',
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center', gap: 3,
-                    cursor: 'pointer',
+                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
                   }}
+                  aria-label={isMuted ? 'Unmute' : 'Mute'}
                 >
                   {isMuted
-                    ? <MicOff style={{ width: 18, height: 18, color: '#ef4444' }} />
-                    : <Mic    style={{ width: 18, height: 18, color: '#374151' }} />
+                    ? <MicOff style={{ width: 20, height: 20, color: '#ef4444' }} />
+                    : <Mic    style={{ width: 20, height: 20, color: '#374151' }} />
                   }
-                  <span style={{ fontSize: 9, color: isMuted ? '#ef4444' : '#6b7280', fontWeight: 600 }}>
+                  <span style={{ fontSize: 9, color: isMuted ? '#ef4444' : '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>
                     {isMuted ? 'UNMUTE' : 'MUTE'}
                   </span>
                 </button>
 
                 {/* Speaker */}
                 <button
-                  onClick={toggleSpeaker}
+                  onClick={(e) => { e.stopPropagation(); toggleSpeaker(); }}
                   style={{
-                    flex: 1, height: 48, borderRadius: 14,
+                    flex: 1, height: 52, borderRadius: 14,
                     border: `2px solid ${isSpeaker ? '#3b82f6' : '#e5e7eb'}`,
                     background: isSpeaker ? '#eff6ff' : '#f9fafb',
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center', gap: 3,
-                    cursor: 'pointer',
+                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
                   }}
+                  aria-label={isSpeaker ? 'Switch to earpiece' : 'Switch to speaker'}
                 >
                   {isSpeaker
-                    ? <Volume2  style={{ width: 18, height: 18, color: '#3b82f6' }} />
-                    : <VolumeX  style={{ width: 18, height: 18, color: '#374151' }} />
+                    ? <Volume2  style={{ width: 20, height: 20, color: '#3b82f6' }} />
+                    : <VolumeX  style={{ width: 20, height: 20, color: '#374151' }} />
                   }
-                  <span style={{ fontSize: 9, color: isSpeaker ? '#3b82f6' : '#6b7280', fontWeight: 600 }}>
+                  <span style={{ fontSize: 9, color: isSpeaker ? '#3b82f6' : '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>
                     {isSpeaker ? 'SPEAKER' : 'EARPIECE'}
                   </span>
                 </button>
 
                 {/* Chat fallback */}
                 <button
-                  onClick={() => setActiveTab('chat')}
+                  onClick={(e) => { e.stopPropagation(); setActiveTab('chat'); }}
                   style={{
-                    flex: 1, height: 48, borderRadius: 14,
+                    flex: 1, height: 52, borderRadius: 14,
                     border: '2px solid #e5e7eb', background: '#f9fafb',
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center', gap: 3,
-                    cursor: 'pointer',
+                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
                   }}
+                  aria-label="Open chat"
                 >
-                  <MessageSquare style={{ width: 18, height: 18, color: '#374151' }} />
-                  <span style={{ fontSize: 9, color: '#6b7280', fontWeight: 600 }}>CHAT</span>
+                  <MessageSquare style={{ width: 20, height: 20, color: '#374151' }} />
+                  <span style={{ fontSize: 9, color: '#6b7280', fontWeight: 700, letterSpacing: '0.05em' }}>CHAT</span>
                 </button>
 
                 {/* End call */}
                 <button
-                  onClick={endCall}
+                  onClick={(e) => { e.stopPropagation(); endCall(); }}
                   style={{
-                    flex: 1, height: 48, borderRadius: 14,
-                    border: 'none', background: '#dc2626',
+                    flex: 1, height: 52, borderRadius: 14,
+                    border: 'none', background: 'linear-gradient(135deg, #ef4444, #dc2626)',
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center', gap: 3,
-                    cursor: 'pointer',
+                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+                    boxShadow: '0 4px 12px rgba(220,38,38,0.35)',
                   }}
+                  aria-label="End call"
                 >
-                  <PhoneOff style={{ width: 18, height: 18, color: '#fff' }} />
-                  <span style={{ fontSize: 9, color: '#fff', fontWeight: 600 }}>END</span>
+                  <PhoneOff style={{ width: 20, height: 20, color: '#fff' }} />
+                  <span style={{ fontSize: 9, color: '#fff', fontWeight: 700, letterSpacing: '0.05em' }}>END</span>
                 </button>
               </div>
 
