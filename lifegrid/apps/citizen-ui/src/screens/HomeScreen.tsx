@@ -179,24 +179,54 @@ export default function HomeScreen() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 4 }}>
           {isOnline
             ? <Wifi style={{ width: 15, height: 15, color: '#22c55e' }} />
             : <WifiOff style={{ width: 15, height: 15, color: '#f59e0b' }} />
           }
-          {/* Kisan-Kavach entry button */}
+
+          {/* Kisan-Kavach profile pill */}
           <button
             onClick={() => navigate('/kisan')}
             style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '5px 10px', borderRadius: 99,
-              background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+              display: 'flex', alignItems: 'center', gap: 8,
+              height: 38, padding: '0 14px 0 6px',
+              borderRadius: 99,
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
               border: '1.5px solid #86efac',
-              cursor: 'pointer', fontSize: 10, fontWeight: 700,
-              color: '#15803d', whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(21,128,61,0.12)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'box-shadow 0.15s, transform 0.15s',
             }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(21,128,61,0.22)'; (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.03)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 8px rgba(21,128,61,0.12)'; (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+            aria-label="Open Kisan-Kavach Farmer Mode"
           >
-            <span style={{ fontSize: 12 }}>🌾</span> Kisan
+            {/* Avatar circle */}
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #16a34a, #15803d)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, fontSize: 14,
+            }}>
+              🌾
+            </div>
+
+            {/* Label */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', letterSpacing: '0.02em' }}>
+                Kisan-Kavach
+              </span>
+              <span style={{ fontSize: 9, color: '#6b7280', fontFamily: 'monospace', letterSpacing: '0.05em' }}>
+                Farmer Mode
+              </span>
+            </div>
+
+            {/* Dropdown chevron */}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ marginLeft: 2, flexShrink: 0 }}>
+              <path d="M2 3.5l3 3 3-3" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           <LanguageSelector value={language} onChange={setLanguage} compact />
         </div>
