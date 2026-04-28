@@ -6,6 +6,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, Wifi, WifiOff, Mic, ChevronRight, Shield, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { useHaptic } from '../hooks/useHaptic';
 import { useVoice, speak } from '../hooks/useVoice';
@@ -35,6 +36,7 @@ export default function HomeScreen() {
     userLocation, enqueueOffline,
   } = useAppStore();
 
+  const navigate = useNavigate();
   const { haptic } = useHaptic();
   const { isOnline } = useOffline();
 
@@ -177,11 +179,25 @@ export default function HomeScreen() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {isOnline
             ? <Wifi style={{ width: 15, height: 15, color: '#22c55e' }} />
             : <WifiOff style={{ width: 15, height: 15, color: '#f59e0b' }} />
           }
+          {/* Kisan-Kavach entry button */}
+          <button
+            onClick={() => navigate('/kisan')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 10px', borderRadius: 99,
+              background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+              border: '1.5px solid #86efac',
+              cursor: 'pointer', fontSize: 10, fontWeight: 700,
+              color: '#15803d', whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ fontSize: 12 }}>🌾</span> Kisan
+          </button>
           <LanguageSelector value={language} onChange={setLanguage} compact />
         </div>
       </div>
