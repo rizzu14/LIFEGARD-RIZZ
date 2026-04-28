@@ -49,10 +49,10 @@ export function CallOverlay() {
   const statusColor = isConnected ? '#22c55e' : isRinging ? '#3b82f6' : isFailed ? '#ef4444' : '#f59e0b';
 
   // ── Button handlers — direct store calls ─────────────────
-  const handleMute    = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); storeMute(); };
-  const handleSpeaker = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); storeSpeaker(); };
-  const handleChat    = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); setActiveTab('chat'); };
-  const handleEnd     = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); storeEnd(); hookEnd(); };
+  const handleMute    = (e: React.MouseEvent | React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); storeMute(); };
+  const handleSpeaker = (e: React.MouseEvent | React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); storeSpeaker(); };
+  const handleChat    = (e: React.MouseEvent | React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); setActiveTab('chat'); };
+  const handleEnd     = (e: React.MouseEvent | React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); storeEnd(); hookEnd(); };
 
   return (
     <motion.div
@@ -72,15 +72,13 @@ export function CallOverlay() {
         overflow: 'visible',   // don't clip buttons
       }}
     >
-      {/* ── Header — tap to collapse ──────────────────────── */}
+      {/* ── Header — tap chevron to collapse ─────────────── */}
       <div
-        onClick={() => setExpanded(v => !v)}
         style={{
           padding: '12px 16px',
           display: 'flex', alignItems: 'center', gap: 12,
           background: isConnected ? '#f0fdf4' : isRinging ? '#eff6ff' : '#f9fafb',
           borderRadius: expanded ? '18px 18px 0 0' : 18,
-          cursor: 'pointer',
           userSelect: 'none',
         }}
       >
@@ -95,10 +93,17 @@ export function CallOverlay() {
           {isRinging && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 1 }}>Routing to nearest operator…</div>}
           {isConnected && <div style={{ fontSize: 11, color: '#6b7280', fontFamily: 'monospace', marginTop: 1 }}>{formatCallDuration(durationSeconds)}</div>}
         </div>
-        {expanded
-          ? <ChevronDown style={{ width: 15, height: 15, color: '#9ca3af', flexShrink: 0 }} />
-          : <ChevronUp   style={{ width: 15, height: 15, color: '#9ca3af', flexShrink: 0 }} />
-        }
+        {/* Chevron — only this toggles expand */}
+        <button
+          onClick={() => setExpanded(v => !v)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0 }}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+        >
+          {expanded
+            ? <ChevronDown style={{ width: 15, height: 15, color: '#9ca3af' }} />
+            : <ChevronUp   style={{ width: 15, height: 15, color: '#9ca3af' }} />
+          }
+        </button>
       </div>
 
       {/* ── Expanded controls ─────────────────────────────── */}
@@ -114,11 +119,15 @@ export function CallOverlay() {
           )}
 
           {/* ── 4 control buttons ─────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+          <div
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}
+            onClick={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
+          >
 
             {/* MUTE */}
             <button
-              onPointerDown={handleMute}
+              onClick={handleMute}
               style={{
                 height: 56, borderRadius: 14,
                 border: `2px solid ${isMuted ? '#ef4444' : '#e2e8f0'}`,
@@ -128,6 +137,7 @@ export function CallOverlay() {
                 cursor: 'pointer',
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
+                userSelect: 'none',
               }}
             >
               {isMuted
@@ -141,7 +151,7 @@ export function CallOverlay() {
 
             {/* SPEAKER */}
             <button
-              onPointerDown={handleSpeaker}
+              onClick={handleSpeaker}
               style={{
                 height: 56, borderRadius: 14,
                 border: `2px solid ${isSpeaker ? '#3b82f6' : '#e2e8f0'}`,
@@ -151,6 +161,7 @@ export function CallOverlay() {
                 cursor: 'pointer',
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
+                userSelect: 'none',
               }}
             >
               {isSpeaker
@@ -164,7 +175,7 @@ export function CallOverlay() {
 
             {/* CHAT */}
             <button
-              onPointerDown={handleChat}
+              onClick={handleChat}
               style={{
                 height: 56, borderRadius: 14,
                 border: '2px solid #e2e8f0', background: '#f8faff',
@@ -173,6 +184,7 @@ export function CallOverlay() {
                 cursor: 'pointer',
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
+                userSelect: 'none',
               }}
             >
               <MessageSquare style={{ width: 20, height: 20, color: '#374151' }} />
@@ -181,7 +193,7 @@ export function CallOverlay() {
 
             {/* END */}
             <button
-              onPointerDown={handleEnd}
+              onClick={handleEnd}
               style={{
                 height: 56, borderRadius: 14,
                 border: 'none',
@@ -192,6 +204,7 @@ export function CallOverlay() {
                 cursor: 'pointer',
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
+                userSelect: 'none',
               }}
             >
               <PhoneOff style={{ width: 20, height: 20, color: '#fff' }} />
